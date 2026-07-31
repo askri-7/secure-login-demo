@@ -33,7 +33,7 @@ secure-login/
 │   │
 │   ├── src/
 │   │   │
-│   │   ├── auth/                    # Authentication module
+│   │   ├── auth/
 │   │   │   ├── dto/
 │   │   │   ├── guards/
 │   │   │   ├── strategies/
@@ -42,14 +42,14 @@ secure-login/
 │   │   │   ├── auth.module.ts
 │   │   │   └── jwt.strategy.ts
 │   │   │
-│   │   ├── users/                   # User management
+│   │   ├── users/
 │   │   │   ├── dto/
 │   │   │   ├── entities/
 │   │   │   ├── users.controller.ts
 │   │   │   ├── users.service.ts
 │   │   │   └── users.module.ts
 │   │   │
-│   │   ├── health/                  # Health check endpoint
+│   │   ├── health/
 │   │   │   ├── health.controller.ts
 │   │   │   └── health.module.ts
 │   │   │
@@ -85,23 +85,54 @@ secure-login/
 │   ├── .env.example
 │   └── README.md
 │
-├── frontend/
+├── frontend/                        # React + Vite
 │   │
 │   ├── public/
 │   │   ├── favicon.ico
 │   │   └── logo.png
 │   │
-│   ├── css/
+│   ├── src/
+│   │   ├── assets/
+│   │   │
+│   │   ├── api/                     # Axios configuration
+│   │   │   └── api.ts
+│   │   │
+│   │   ├── components/
+│   │   │   ├── Navbar/
+│   │   │   ├── ProtectedRoute/
+│   │   │   ├── LoginForm/
+│   │   │   └── RegisterForm/
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── Home.tsx
+│   │   │   ├── Login.tsx
+│   │   │   ├── Register.tsx
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Profile.tsx
+│   │   │   └── NotFound.tsx
+│   │   │
+│   │   ├── layouts/
+│   │   │
+│   │   ├── hooks/
+│   │   │
+│   │   ├── context/
+│   │   │   └── AuthContext.tsx
+│   │   │
+│   │   ├── services/
+│   │   │   └── auth.service.ts
+│   │   │
+│   │   ├── types/
+│   │   │
+│   │   ├── utils/
+│   │   │
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   └── vite-env.d.ts
 │   │
-│   ├── js/
-│   │   ├── api.js
-│   │   ├── auth.js
-│   │   └── dashboard.js
-│   │
-│   ├── login.html
-│   ├── register.html
-│   ├── dashboard.html
-│   ├── index.html
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── .env.example
 │   └── README.md
 │
 ├── database/
@@ -121,7 +152,8 @@ secure-login/
 │   ├── deploy.sh
 │   ├── start.sh
 │   ├── stop.sh
-│   └── backup.sh
+│   ├── backup.sh
+│   └── health-check.sh
 │
 ├── docs/
 │   │
