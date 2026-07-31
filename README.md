@@ -25,7 +25,7 @@ The authentication system will implement:
 - HTTPS through Nginx
 
 ---
-
+```
 
 secure-login/
 │
@@ -140,3 +140,4 @@ secure-login/
 ├── .gitignore
 ├── LICENSE
 └── README.md
+```
