@@ -2,25 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserRole } from '@/generated/prisma/client';
-import type { Request } from 'express';
-
-function getCookieValue(request: Request, cookieName: string) {
-  const cookieHeader = request.headers.cookie;
-
-  if (!cookieHeader) {
-    return null;
-  }
-
-  for (const cookie of cookieHeader.split(';')) {
-    const [rawName, ...rawValueParts] = cookie.trim().split('=');
-
-    if (rawName === cookieName) {
-      return rawValueParts.join('=');
-    }
-  }
-
-  return null;
-}
 
 export interface JwtPayload {
   sub: number;
@@ -38,10 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
-        (request: Request) => getCookieValue(request, 'accessToken'),
-      ]),
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
 

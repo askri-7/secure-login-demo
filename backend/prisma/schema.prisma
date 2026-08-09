@@ -26,17 +26,4 @@ model User {
   role      UserRole  @default(USER)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  refreshTokens RefreshToken[]
-}
-
-model RefreshToken {
-  id          String   @id @db.Uuid
-  hashedToken String
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt   DateTime
-  revoked     Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  @@index([userId])
 }
