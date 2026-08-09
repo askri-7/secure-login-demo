@@ -1,5 +1,4 @@
-import { useState } from "react";
-import type { FormEvent } from "react";
+import { useState, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signup } from "../lib/api";
 
@@ -30,6 +29,7 @@ export default function SignupPage() {
   return (
     <div className="auth-page">
       <form className="auth-card" onSubmit={handleSubmit}>
+        <p className="auth-eyebrow">New account</p>
         <h1>Create account</h1>
         <p className="auth-subtitle">Sign up to get started</p>
 

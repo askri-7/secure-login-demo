@@ -22,7 +22,7 @@ import { RolesGuard } from './guards/roles.guard';
 
         return {
           secret: jwtSecret,
-          signOptions: { expiresIn: '7d' },
+          signOptions: { expiresIn: '15m' },
         };
       },
     }),
