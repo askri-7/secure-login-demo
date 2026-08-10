@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signup } from "../lib/api";
 
@@ -16,9 +16,10 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const { token } = await signup(name, email, password);
-      localStorage.setItem("token", token);
-      navigate("/"); // go to the logged-in home page
+      // signup() no longer returns a token — the backend sets it as an
+      // httpOnly cookie automatically. Nothing to store here.
+      await signup(name, email, password);
+      navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

@@ -1,34 +1,23 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchMe } from "../lib/api";
+import { logout } from "../lib/api";
 
 type User = { id: number; email: string; name: string; role: string };
 
-export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null);
+type ProfilePageProps = {
+  user: User;
+  onLoggedOut: () => void;
+};
+
+export default function ProfilePage({ user, onLoggedOut }: ProfilePageProps) {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    fetchMe(token)
-      .then(setUser)
-      .catch(() => {
-        localStorage.removeItem("token");
-        navigate("/login");
-      });
-  }, [navigate]);
-
-  function handleLogout() {
-    localStorage.removeItem("token");
-    navigate("/login");
+  async function handleLogout() {
+    // Tells the backend to revoke the refresh token and clear the
+    // httpOnly cookies. Nothing to clear on the frontend ourselves.
+    await logout();
+    onLoggedOut();
+    navigate("/");
   }
-
-  if (!user) return null; // brief flash while /users/me resolves
 
   return (
     <div className="auth-page">

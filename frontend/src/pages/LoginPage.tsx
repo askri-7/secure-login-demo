@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../lib/api";
 
@@ -15,14 +15,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { token } = await login(email, password);
-
-      // NOTE: localStorage is the simplest option for a demo/learning project,
-      // but it's readable by any JS on the page (XSS risk). For a real production
-      // app, prefer an httpOnly cookie set by the backend instead.
-      localStorage.setItem("token", token);
-
-      navigate("/"); // go to the logged-in home page
+      // login() no longer returns a token — the backend sets it as an
+      // httpOnly cookie automatically. Nothing to store here.
+      await login(email, password);
+      navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
