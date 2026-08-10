@@ -29,14 +29,17 @@ model User {
   refreshTokens RefreshToken[]
 }
 
-model RefreshToken {
-  id          String   @id @db.Uuid
-  hashedToken String
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt   DateTime
-  revoked     Boolean  @default(false)
-  createdAt   DateTime @default(now())
 
-  @@index([userId])
+model RefreshToken {
+  id            String   @id @db.Uuid
+  hashedToken   String
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt     DateTime
+  revoked       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  revokedAt     DateTime?  
+
+  @@index([userId])         // fast refresh query
+  @@index([revokedAt])     // fast cleanup queries
 }

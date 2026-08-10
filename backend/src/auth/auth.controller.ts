@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Post , Req, Res, UnauthorizedException} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -8,9 +8,12 @@ import type { Request, Response } from 'express';
 
 
 @Controller('auth')
+
+
 export class AuthController {
   constructor(private authService: AuthService) {}
-
+ 
+ // take an http respose object and two token and tell the browser to store them as cookie
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -18,7 +21,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       secure: isProduction,
-      path: '/',
+      path: '/',  //send on every url 
       maxAge: 15 * 60 * 1000,
     });
 
@@ -35,8 +38,7 @@ export class AuthController {
     res.clearCookie('accessToken', { path: '/' });
     res.clearCookie('refreshToken', { path: '/' });
   }
-
-  private getCookie(req: Request, cookieName: string) {
+private getCookie(req: Request, cookieName: string) {
     const cookieHeader = req.headers.cookie;
 
     if (!cookieHeader) {
@@ -54,32 +56,29 @@ export class AuthController {
     return null;
   }
   
-
-  
   @Post('signup')
-  async signup(@Body() signUpDto: SignUpDto, @Res({ passthrough: true }) res: Response) {
+  async signup(@Body() signUpDto: SignUpDto, @Res({ passthrough: true}) res: Response) {
     const session = await this.authService.signUp(signUpDto);
-    this.setAuthCookies(res, session.accessToken, session.refreshToken);
-
-    return { user: session.user };
+    this.setAuthCookies(res, session.accessToken, session.refreshToken)
+    return {user: session.user};
   }
 
   @Post('login') 
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(@Body() loginDto: LoginDto,@Res({ passthrough: true })res: Response) {
     const session = await this.authService.login(loginDto);
     this.setAuthCookies(res, session.accessToken, session.refreshToken);
 
     return { user: session.user };
+    
   }
 
   @Post('refresh')
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async refresh(@Req() req: Request, @Res({ passthrough: true}) res: Response){
     const refreshToken = this.getCookie(req, 'refreshToken');
 
     if (!refreshToken) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
-
     const session = await this.authService.refresh({ refreshToken });
     this.setAuthCookies(res, session.accessToken, session.refreshToken);
 
@@ -87,9 +86,10 @@ export class AuthController {
   }
 
   @Post('logout')
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const refreshToken = this.getCookie(req, 'refreshToken');
-
+   
+     // revoke the refresh token 
     if (refreshToken) {
       await this.authService.logout({ refreshToken });
     }
