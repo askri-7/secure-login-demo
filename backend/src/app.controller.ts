@@ -1,4 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AppService } from './app.service';
 
 @Controller()
