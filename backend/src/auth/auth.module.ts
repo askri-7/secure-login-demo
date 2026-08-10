@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from '@/database/prisma.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { GithubStrategy } from './strategies/github.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 
@@ -27,9 +28,8 @@ import { RolesGuard } from './guards/roles.guard';
       },
     }),
   ],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard],
+  providers: [AuthService, JwtStrategy, GithubStrategy, JwtAuthGuard, RolesGuard],
   controllers: [AuthController],
   exports: [JwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}
-
