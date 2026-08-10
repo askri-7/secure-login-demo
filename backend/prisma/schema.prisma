@@ -19,14 +19,15 @@ enum UserRole {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
-  name      String
-  password  String
-  role      UserRole  @default(USER)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  name          String
+  password      String?   // now optional  null for OAuth-only users
+  role          UserRole  @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   refreshTokens RefreshToken[]
+  oauthAccounts OAuthAccount[]
 }
 
 
@@ -42,4 +43,15 @@ model RefreshToken {
 
   @@index([userId])         // fast refresh query
   @@index([revokedAt])     // fast cleanup queries
+}
+
+model OAuthAccount {
+  id             String   @id @default(uuid())
+  provider       String   // "github" or "google"
+  providerUserId String   // the ID GitHub/Google assigns to that user — stable, never changes
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@unique([provider, providerUserId]) // one GitHub account can only ever link to one User
 }

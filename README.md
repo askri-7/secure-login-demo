@@ -2,7 +2,7 @@
 
 This repository contains the implementation of a secure login flow using NestJS, Prisma, PostgreSQL, and React.
 
-## What We Completed
+## What I Completed
 
 - Built backend authentication with signup and login.
 - Added role-based protection for admin routes.
@@ -14,17 +14,19 @@ This repository contains the implementation of a secure login flow using NestJS,
 - Updated frontend and backend communication to use credentialed requests.
 - Fixed CORS configuration to allow frontend cookie-based auth requests.
 - Fixed migration state issues that caused internal server errors during login.
+- Added GitHub OAuth 2.0 login with explicit email verification via GitHub API.
+- Implemented account linking: a user with a local account can link their GitHub identity and log in with either method.
 
 ## What We Will Do Next
 
-- Add CSRF protection for cookie-based auth endpoints.
+- Add Google Sign-In using OpenID Connect (OIDC) via `openid-client`.
 - Add login rate limiting and account lockout policy.
+- Add CSRF protection for cookie-based auth endpoints.
 - Add audit logging for auth and admin actions.
 - Add automated seed/setup scripts for easier local onboarding.
 - Add integration and e2e tests for refresh and logout flows.
 - Improve deployment docs for production cookie settings.
 - Add monitoring and structured error reporting.
-
 ## Intended Repository Structure
 
 ```text

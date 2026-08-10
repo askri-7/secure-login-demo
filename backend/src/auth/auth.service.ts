@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import {JwtService} from '@nestjs/jwt';
 import { Prisma, User } from '@/generated/prisma/client';
 import {PrismaService} from '@/database/prisma.service';
@@ -8,7 +8,7 @@ import {SignUpDto} from './dto/signup.dto';
 import {LoginDto} from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { triggerAsyncId } from 'node:async_hooks';
-
+import {GithubProfile} from './strategies/github.strategy';
 
 type AuthUser = Pick<User, 'id' | 'email' | 'name' | 'role'>;
 
@@ -145,6 +145,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
 
     }
+    if (!user.password) {
+  throw new UnauthorizedException('Invalid email or password');
+}
     //compare password
      const isPasswordMatched = await bcrypt.compare(password, user.password);
 
@@ -223,6 +226,73 @@ async refresh(refreshDto: RefreshDto): Promise<AuthResponse> {
       }
 
       return { message: 'Logout successful'};
+    }
+
+
+
+    async loginWithGithub(profile: GithubProfile): Promise<AuthResponse> {
+
+      const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
+        where : {
+          provider_providerUserId: {
+            provider: 'github',
+            providerUserId: profile.providerUserId,
+          },
+        },
+        include: { user: true},
+      });
+
+      if (existingOAuthAccount) {
+        const { accessToken , refreshToken } = await this.issueTokenPair(
+          this.prisma,
+          existingOAuthAccount.user,
+        );
+        return {
+          accessToken,
+          refreshToken,
+          user : this.toUserResponse(existingOAuthAccount.user),
+        };
+      }
+
+      if(!profile.email || !profile.emailVerified) {
+        throw new BadRequestException(
+           'Your GitHub account needs a verified email address to sign in.',
+        );
+      }
+
+      const user = await this.prisma.$transaction(async (tx) => {
+        const existingUser = await tx.user.findUnique({
+          where: { email: profile.email!},
+        });
+
+        const user = 
+        existingUser ??
+        (await tx.user.create({
+          data: {
+            email: profile.email!,
+            name: profile.name,
+            password: null,
+            role: 'USER'
+          },
+        }));
+        await tx.oAuthAccount.create({
+          data: {
+            id: randomUUID(),
+            provider: 'github',
+            providerUserId: profile.providerUserId,
+            userId: user.id,
+          },
+        });
+
+        return user;
+      
+      
+    });
+
+    const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+
+    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+
     }
   
 }

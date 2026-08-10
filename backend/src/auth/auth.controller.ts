@@ -1,9 +1,11 @@
-import { Body, Controller, Post , Req, Res, UnauthorizedException} from '@nestjs/common';
+import { Body,Get, Controller, Post , Req, Res, UnauthorizedException, UseGuards} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import type { Request, Response } from 'express';
+import type { GithubProfile } from './strategies/github.strategy';
+import { GithubAuthGuard } from './guards/github-auth.guard';
 
 
 
@@ -98,4 +100,36 @@ private getCookie(req: Request, cookieName: string) {
 
     return { message: 'Logout successful' };
   }
+ // Step 1 of the OAuth dance: the frontend just navigates the browser
+  // here (a normal link, not a fetch call). GithubAuthGuard triggers
+  // Passport, which immediately redirects the browser to GitHub's
+  // consent screen — nothing in this method body ever actually runs.
+
+  @Get('github')
+  @UseGuards(GithubAuthGuard)
+  githubLogin(){} // redirection 
+
+
+  // Step 2: GitHub redirects the browser back here once the user
+  // approves. GithubAuthGuard has already run GithubStrategy.validate()
+  // by this point, so req.user is the GithubProfile we built there.
+  @Get('github/callback')
+  @UseGuards(GithubAuthGuard)
+
+  async githubCallback(@Req() req: Request, @Res() res: Response) {
+    const profile = req.user as GithubProfile;
+    const session = await this.authService.loginWithGithub(profile);
+    this.setAuthCookies(res , session.accessToken, session.refreshToken);
+    
+
+    // This route is a real browser navigation (the user got here by
+    // being redirected from GitHub), not a fetch() call, so we send
+    // an actual redirect back to the frontend rather than JSON.
+
+    //const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    //res.redirect(`${frontendUrl}/`);
+    res.redirect(`http://localhost:3000`);
+  }
+
+
 }

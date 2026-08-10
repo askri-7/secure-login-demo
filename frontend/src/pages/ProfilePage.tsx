@@ -25,7 +25,7 @@ export default function ProfilePage({ user, onLoggedOut }: ProfilePageProps) {
         <p className="auth-eyebrow">Session active</p>
         <h1>Welcome, {user.name}</h1>
         <p className="auth-subtitle">{user.email}</p>
-        <span className="profile-role">{user.role}</span>
+       
         <button className="secondary" onClick={handleLogout}>
           Log out
         </button>
