@@ -1,4 +1,4 @@
-import { Injectable} from '@nestjs/common';
+import { Injectable , UnauthorizedException} from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, Profile } from 'passport-github2';
 import { callbackify } from 'util';
@@ -11,7 +11,7 @@ import { callbackify } from 'util';
 export type GithubProfile = {
     providerUserId: string;
     email: string | null ;
-    emailVerfied: boolean;
+    emailVerified: boolean;
     name: string;
 };
 
@@ -41,23 +41,52 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github')  {
         });
     }
 
+    
     async validate(
-        accessToken: string,
-        _refreshToken: string,
-        profile: Profile,
-    ): Promise<GithubProfile> {
-        const primaryVerifiedEmail =
-           profile.emails?.find((e) => (e as any).verified && (e as any).primary) ??
-           profile.emails?.find((e) => (e as any).verified);
-        
+  accessToken: string,
+  _refreshToken: string,
+  profile: Profile,
+): Promise<GithubProfile> {
+  let emails: Array<{ email: string; primary: boolean; verified: boolean }> = [];
 
-        return {
-            providerUserId: profile.id,
-            email: primaryVerifiedEmail?.value ?? profile.emails?.[0]?.value ?? null,
-            emailVerfied: Boolean(primaryVerifiedEmail),
-            name: profile.displayName || profile.username || 'Github User' ,
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+   // fetch github api directly is the most reliable way
+    const res = await fetch('https://api.github.com/user/emails', {
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'User-Agent': 'secure-login-demo',
+        Accept: 'application/vnd.github.v3+json',
+      },
+    });
+    clearTimeout(timeout);
 
-        };
-    }
+    if (!res.ok) throw new Error(`GitHub responded ${res.status}`);
+
+    const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('Unexpected response shape');
+
+    emails = data;
+  } catch (err) {
+    // Fail closed: if we can't verify with GitHub, reject
+    console.error('GitHub email verification failed:', err);
+    throw new UnauthorizedException(
+      'Unable to verify your GitHub email. Please try again later.',
+    );
+  }
+
+  const primaryVerifiedEmail =
+    emails.find((e) => e.verified && e.primary) ??
+    emails.find((e) => e.verified);
+
+  return {
+    providerUserId: profile.id,
+    email: primaryVerifiedEmail?.email ?? emails[0]?.email ?? null,
+    emailVerified: Boolean(primaryVerifiedEmail),
+    name: profile.displayName || profile.username || 'Github User',
+  };
+}
 }
 

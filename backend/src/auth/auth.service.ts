@@ -254,7 +254,7 @@ async refresh(refreshDto: RefreshDto): Promise<AuthResponse> {
         };
       }
 
-      if(!profile.email || !profile.emailVerfied) {
+      if(!profile.email || !profile.emailVerified) {
         throw new BadRequestException(
            'Your GitHub account needs a verified email address to sign in.',
         );
