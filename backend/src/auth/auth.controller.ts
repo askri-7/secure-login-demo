@@ -113,6 +113,8 @@ private getCookie(req: Request, cookieName: string) {
   // Step 2: GitHub redirects the browser back here once the user
   // approves. GithubAuthGuard has already run GithubStrategy.validate()
   // by this point, so req.user is the GithubProfile we built there.
+  @Get('github/callback')
+  @UseGuards(GithubAuthGuard)
 
   async githubCallback(@Req() req: Request, @Res() res: Response) {
     const profile = req.user as GithubProfile;
@@ -124,8 +126,9 @@ private getCookie(req: Request, cookieName: string) {
     // being redirected from GitHub), not a fetch() call, so we send
     // an actual redirect back to the frontend rather than JSON.
 
-    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/`);
+    //const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    //res.redirect(`${frontendUrl}/`);
+    res.redirect(`http://localhost:3000`);
   }
 
 

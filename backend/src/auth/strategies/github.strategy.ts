@@ -46,9 +46,10 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github')  {
         _refreshToken: string,
         profile: Profile,
     ): Promise<GithubProfile> {
-        const primaryVerifiedEmail = profile.emails?.find(
-            (e) => (e as { verified?: boolean}).verified,
-        );
+        const primaryVerifiedEmail =
+           profile.emails?.find((e) => (e as any).verified && (e as any).primary) ??
+           profile.emails?.find((e) => (e as any).verified);
+        
 
         return {
             providerUserId: profile.id,
