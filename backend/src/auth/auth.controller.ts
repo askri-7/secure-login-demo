@@ -66,7 +66,29 @@ export class AuthController {
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+  } 
+   private clearAuthCookies(res: Response) {
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/' });
   }
+private getCookie(req: Request, cookieName: string) {
+    const cookieHeader = req.headers.cookie;
+
+    if (!cookieHeader) {
+      return null;
+    }
+
+    for (const cookie of cookieHeader.split(';')) {
+      const [rawName, ...rawValueParts] = cookie.trim().split('=');
+
+      if (rawName === cookieName) {
+        return rawValueParts.join('=');
+      }
+    }
+
+    return null;
+  }
+  
 
   // github cookie helper 
 
@@ -90,27 +112,6 @@ export class AuthController {
   }
 
 
-  private clearAuthCookies(res: Response) {
-    res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/' });
-  }
-private getCookie(req: Request, cookieName: string) {
-    const cookieHeader = req.headers.cookie;
-
-    if (!cookieHeader) {
-      return null;
-    }
-
-    for (const cookie of cookieHeader.split(';')) {
-      const [rawName, ...rawValueParts] = cookie.trim().split('=');
-
-      if (rawName === cookieName) {
-        return rawValueParts.join('=');
-      }
-    }
-
-    return null;
-  }
   
   @Post('signup')
   async signup(@Body() signUpDto: SignUpDto, @Res({ passthrough: true}) res: Response) {

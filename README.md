@@ -2,32 +2,24 @@
 
 This repository contains the implementation of a secure login flow using NestJS, Prisma, PostgreSQL, and React.
 
-## What I Completed
 
-- Built backend authentication with signup and login.
-- Added role-based protection for admin routes.
-- Added refresh token support with rotation and revocation.
-- Added a `RefreshToken` database model and migration.
-- Reduced access token lifetime to 15 minutes.
-- Stored refresh tokens hashed in the database (never raw values).
-- Switched from localStorage token storage to httpOnly cookies.
-- Updated frontend and backend communication to use credentialed requests.
-- Fixed CORS configuration to allow frontend cookie-based auth requests.
-- Fixed migration state issues that caused internal server errors during login.
-- Added GitHub OAuth 2.0 login with explicit email verification via GitHub API.
-- Implemented account linking: a user with a local account can link their GitHub identity and log in with either method.
+## What We Completed
+- Local auth (signup/login) with bcrypt passwords
+- JWT access tokens (15 min) + refresh token rotation
+- Role-based access control (USER / ADMIN)
+- httpOnly cookie session management
+- CORS configuration for credentialed requests
+- GitHub OAuth (manual, with state cookie CSRF protection)
+- Google OIDC via openid-client (PKCE + state cookie)
+- Basic rate limiting (@nestjs/throttler, 100 req/min global)
 
 ## What We Will Do Next
-
-- Add Google Sign-In using OpenID Connect (OIDC) via `openid-client`.
-- Add login rate limiting and account lockout policy.
-- Add CSRF protection for cookie-based auth endpoints.
-- Add audit logging for auth and admin actions.
-- Add automated seed/setup scripts for easier local onboarding.
-- Add integration and e2e tests for refresh and logout flows.
-- Improve deployment docs for production cookie settings.
-- Add monitoring and structured error reporting.
-## Intended Repository Structure
+- [ ] Tighten rate limiting on auth endpoints specifically
+- [ ] Add CSRF tokens for general API endpoints (double-submit cookie)
+- [ ] Audit logging for auth events
+- [ ] Integration & E2E tests
+- [ ] Production deployment docs
+- [ ] Monitoring & structured logging
 
 ```text
 secure-login-demo/
