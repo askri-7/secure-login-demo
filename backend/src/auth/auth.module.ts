@@ -5,10 +5,12 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from '@/database/prisma.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { GithubStrategy } from './strategies/github.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
-
+import { GoogleOidcService } from './google-oidc.service';
+import { GithubOAuthService } from './github-oauth.service';
+import { AuditLogService } from './audit-log.service';
+import { TokenCleanupService } from './tokencleanup.service';
 @Module({
   imports: [
     PrismaModule,
@@ -28,7 +30,10 @@ import { RolesGuard } from './guards/roles.guard';
       },
     }),
   ],
-  providers: [AuthService, JwtStrategy, GithubStrategy, JwtAuthGuard, RolesGuard],
+  providers: [AuthService,
+     JwtStrategy, GithubOAuthService,
+      GoogleOidcService , JwtAuthGuard,
+       RolesGuard, AuditLogService,  TokenCleanupService,],
   controllers: [AuthController],
   exports: [JwtAuthGuard, RolesGuard],
 })

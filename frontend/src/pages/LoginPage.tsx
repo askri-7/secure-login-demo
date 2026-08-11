@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../lib/api";
+import OAuthButtons from "./components/OAuthButtons";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function LoginPage() {
       <form className="auth-card" onSubmit={handleSubmit}>
         <p className="auth-eyebrow">Authenticate</p>
         <h1>Sign in</h1>
-        <p className="auth-subtitle">Use the account you created via /auth/signup</p>
+        <p className="auth-subtitle">enter accoutn credentials</p>
 
         <label htmlFor="email">Email</label>
         <input
@@ -59,7 +60,10 @@ export default function LoginPage() {
         <button type="submit" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
-
+        
+        <p className="oauth-divider">or</p>
+        <OAuthButtons />
+      
         <p className="auth-switch">
           No account yet? <Link to="/signup">Sign up</Link>
         </p>

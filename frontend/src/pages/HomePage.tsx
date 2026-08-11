@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import OAuthButtons from "./components/OAuthButtons";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -26,6 +27,10 @@ export default function HomePage() {
           <button className="secondary" onClick={() => navigate("/login")}>
             Log in
           </button>
+        </div>
+
+       <div> <span className="oauth-divider">or</span>
+        <OAuthButtons />
         </div>
       </div>
     </div>

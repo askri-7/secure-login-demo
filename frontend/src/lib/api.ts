@@ -1,6 +1,6 @@
 // Base URL of your NestJS backend.
 // Move this to a .env file (VITE_API_URL) once you deploy anywhere.
-const API_URL = "http://localhost:3000";
+export const API_URL = "http://localhost:3000";
 
 type User = { id: number; email: string; name: string; role: string };
 

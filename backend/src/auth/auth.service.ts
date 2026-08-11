@@ -1,36 +1,43 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
-import {JwtService} from '@nestjs/jwt';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Prisma, User } from '@/generated/prisma/client';
-import {PrismaService} from '@/database/prisma.service';
-import * as bcrypt from 'bcryptjs'
+import { PrismaService } from '@/database/prisma.service';
+import * as bcrypt from 'bcryptjs';
 import { randomUUID, randomBytes } from 'node:crypto';
-import {SignUpDto} from './dto/signup.dto';
-import {LoginDto} from './dto/login.dto';
+import { SignUpDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
-import { triggerAsyncId } from 'node:async_hooks';
-import {GithubProfile} from './strategies/github.strategy';
+import { GithubProfile } from './github-oauth.service';
+import { GoogleProfile } from './google-oidc.service';
+import { AuditLogService } from './audit-log.service';
 
 type AuthUser = Pick<User, 'id' | 'email' | 'name' | 'role'>;
 
 type AuthResponse = {
   accessToken: string;
   refreshToken: string;
-  user:{
+  user: {
     id: number;
     email: string;
     name: string;
     role: string;
   };
 };
+
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma : PrismaService,
-    private jwtService : JwtService,
-  ){}
-  
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+    private audit: AuditLogService,
+  ) {}
 
-    private toUserResponse(user: AuthUser) {
+  private toUserResponse(user: AuthUser) {
     return {
       id: user.id,
       email: user.email,
@@ -39,260 +46,345 @@ export class AuthService {
     };
   }
 
-  //  crete a refreshtoken hash it and store it in the refresh token table then return the refreshtoken
+  /**
+   * Generate a refresh token with a tokenId prefix for fast DB lookup.
+   *
+   * Raw token:  128 hex chars
+   *   tokenId:   first 16 chars — stored plain in DB, indexed, used for lookup
+   *   secret:    remaining 112 chars — hashed with bcrypt, used for validation
+   *
+   * This avoids scanning the entire RefreshToken table on every request.
+   */
   private async storeRefreshToken(
     client: PrismaService | Prisma.TransactionClient,
     userId: number,
-  ){
-    const refreshToken = randomBytes(64).toString('hex');
+  ) {
+    const refreshToken = randomBytes(64).toString('hex'); // 128 chars
+    const tokenId = refreshToken.slice(0, 16);              // lookup key
+    const tokenSecret = refreshToken.slice(16);             // the secret to hash
 
-    //hash refresh tokens before storege so a database leak cannot be used to replay sessions
-
-    const hashedToken = await bcrypt.hash(refreshToken,12);
+    const hashedSecret = await bcrypt.hash(tokenSecret, 12);
 
     await client.refreshToken.create({
       data: {
         id: randomUUID(),
-        hashedToken,
+        tokenId,
+        hashedSecret,
         userId,
-        expiresAt: new Date(Date.now()+ 7*24*60*1000),
-  
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
-    return refreshToken;
+
+    return refreshToken; // return the FULL token to the caller
   }
 
-  // it doesnt check any thing just return a pair of token
   private async issueTokenPair(
     client: PrismaService | Prisma.TransactionClient,
     user: AuthUser,
-  ){
-  const accessToken = this.jwtService.sign({
+  ) {
+    const accessToken = this.jwtService.sign({
       sub: user.id,
       email: user.email,
       role: user.role,
     });
-  const refreshToken = await this.storeRefreshToken(client, user.id);
-  
-  return { accessToken , refreshToken};
-
+    const refreshToken = await this.storeRefreshToken(client, user.id);
+    return { accessToken, refreshToken };
   }
 
+  /**
+   * Fast lookup by tokenId (indexed), then ONE bcrypt.compare on the secret.
+   * O(1) lookup instead of O(n) table scan.
+   */
   private async findMatchingRefreshToken(
     client: PrismaService | Prisma.TransactionClient,
     refreshToken: string,
     activeOnly = true,
-  ){
-    const tokens = await client.refreshToken.findMany({
-      where: activeOnly
-      ? {
-        revoked: false,
-        expiresAt:{
-          gt: new Date(),
-        },
-      }
-      : undefined, 
-      select: {
-        id: true,
-        hashedToken: true,
-        userId: true,
+  ) {
+    const tokenId = refreshToken.slice(0, 16);
+    const tokenSecret = refreshToken.slice(16);
+
+    const token = await client.refreshToken.findUnique({
+      where: { tokenId },
+    });
+
+    if (!token) return null;
+
+    // If activeOnly, skip revoked/expired tokens
+    if (activeOnly && (token.revoked || token.expiresAt <= new Date())) {
+      return null;
+    }
+
+    const valid = await bcrypt.compare(tokenSecret, token.hashedSecret);
+    if (!valid) return null;
+
+    return token;
+  }
+
+  /**
+   * Delete old revoked and expired tokens to keep the table small.
+   * Call this periodically (e.g., on startup, via cron, or after logout).
+   */
+  async cleanupOldTokens(): Promise<{ deleted: number }> {
+    const result = await this.prisma.refreshToken.deleteMany({
+      where: {
+        OR: [
+          { revoked: true },
+          { expiresAt: { lt: new Date() } },
+        ],
       },
-      
     });
-    for (const token of tokens) {
-      if (await bcrypt.compare(refreshToken, token.hashedToken))  {
-        return token ;
-      }
-    }
-    return null ;
+    return { deleted: result.count };
   }
 
-  async signUp (signUpDto: SignUpDto): Promise<AuthResponse>{
+  async signUp(
+    signUpDto: SignUpDto,
+    ctx: { ip: string; userAgent?: string },
+  ): Promise<AuthResponse> {
+    const { name, email, password } = signUpDto;
 
-    const {name, email , password} = signUpDto;
-
-    //check if user exists
-
-    const existingUser = await this.prisma.user.findUnique({where: {email} });
-
-    //if not exist throw error 
-
-    if(existingUser){
-      throw new  ConflictException('Email already in use');
-
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      await this.audit.log({
+        event: 'LOGIN_FAILURE',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        metadata: { reason: 'email_already_exists', email },
+      });
+      throw new ConflictException('Email already in use');
     }
-    //hash the password
-     const hashedPassword = await bcrypt.hash(password,12);
-   // create the new user with default role USER
-   const user = await  this.prisma.user.create({data: {name , email , password: hashedPassword, role: 'USER'} });
 
-   const { accessToken , refreshToken} = await this.issueTokenPair(this.prisma, user);
-
-   return {accessToken, refreshToken , user : this.toUserResponse(user) };
-
-  }
-
-  async login(LoginDto: LoginDto): Promise<AuthResponse> {
-    const  { email , password} = LoginDto;
-
-    //find user 
-
-    const user = await this.prisma.user.findUnique({
-      where: {email}
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await this.prisma.user.create({
+      data: { name, email, password: hashedPassword, role: 'USER' },
     });
 
-    if(!user){
+    const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+
+    await this.audit.log({
+      event: 'SIGNUP',
+      userId: user.id,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { email: user.email },
+    });
+
+    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+  }
+
+  async login(
+    loginDto: LoginDto,
+    ctx: { ip: string; userAgent?: string },
+  ): Promise<AuthResponse> {
+    const { email, password } = loginDto;
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user || !user.password) {
+      await this.audit.log({
+        event: 'LOGIN_FAILURE',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        metadata: { reason: 'invalid_credentials', email },
+      });
       throw new UnauthorizedException('Invalid email or password');
-
     }
-    if (!user.password) {
-  throw new UnauthorizedException('Invalid email or password');
-}
-    //compare password
-     const isPasswordMatched = await bcrypt.compare(password, user.password);
 
+    const isPasswordMatched = await bcrypt.compare(password, user.password);
     if (!isPasswordMatched) {
+      await this.audit.log({
+        event: 'LOGIN_FAILURE',
+        userId: user.id,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        metadata: { reason: 'wrong_password', email },
+      });
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+
+    await this.audit.log({
+      event: 'LOGIN_SUCCESS',
+      userId: user.id,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
+
+    return { accessToken, refreshToken, user: this.toUserResponse(user) };
   }
-   const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
 
-
-   return { accessToken , refreshToken , user: this.toUserResponse(user) };
-}
-  
-
-async refresh(refreshDto: RefreshDto): Promise<AuthResponse> {
-   
-  const matchedToken = await this.findMatchingRefreshToken(
+  async refresh(
+    refreshDto: RefreshDto,
+    ctx: { ip: string; userAgent?: string },
+  ): Promise<AuthResponse> {
+    const matchedToken = await this.findMatchingRefreshToken(
       this.prisma,
       refreshDto.refreshToken,
     );
-    
-    if(!matchedToken) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
 
+    if (!matchedToken) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
+
     const user = await this.prisma.user.findUnique({
-      where: {
-        id: matchedToken.userId,
-      },
+      where: { id: matchedToken.userId },
     });
-    
-    if(!user){
+
+    if (!user) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
-
 
     return this.prisma.$transaction(async (tx) => {
-       // Rotate refresh tokens so every refresh call invalidates the previous token.
-       await tx.refreshToken.update({
-        where: {
-          id: matchedToken?.id,
-        },
-        data: {
-           revoked: true,
-           revokedAt: new Date(),
-        },
-       });
-       const {accessToken, refreshToken} = await this.issueTokenPair(tx, user);
-
-       return {
-        accessToken,
-        refreshToken,
-        user: this.toUserResponse(user),
-       };
+      await tx.refreshToken.update({
+        where: { id: matchedToken.id },
+        data: { revoked: true, revokedAt: new Date() },
       });
-    
+
+      const { accessToken, refreshToken } = await this.issueTokenPair(tx, user);
+
+      await this.audit.log({
+        event: 'TOKEN_REFRESH',
+        userId: user.id,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
+
+      return { accessToken, refreshToken, user: this.toUserResponse(user) };
+    });
+  }
+
+  async logout(
+    refreshDto: RefreshDto,
+    ctx: { ip: string; userAgent?: string },
+  ): Promise<{ message: string }> {
+    const matchedToken = await this.findMatchingRefreshToken(
+      this.prisma,
+      refreshDto.refreshToken,
+      false, // allow revoking already-expired tokens too
+    );
+
+    if (matchedToken) {
+      await this.prisma.refreshToken.update({
+        where: { id: matchedToken.id },
+        data: { revoked: true, revokedAt: new Date() },
+      });
+
+      await this.audit.log({
+        event: 'LOGOUT',
+        userId: matchedToken.userId,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
     }
 
-    async logout(refreshDto: RefreshDto): Promise<{ message: string }> {
-      
-      const matchedToken = await this.findMatchingRefreshToken(
+    return { message: 'Logout successful' };
+  }
+
+  private async handleOAuthLogin(
+    provider: string,
+    profile: {
+      providerUserId: string;
+      email: string | null;
+      emailVerified: boolean;
+      name: string;
+    },
+    ctx: { ip: string; userAgent?: string },
+  ): Promise<AuthResponse> {
+    const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider,
+          providerUserId: profile.providerUserId,
+        },
+      },
+      include: { user: true },
+    });
+
+    if (existingOAuthAccount) {
+      const { accessToken, refreshToken } = await this.issueTokenPair(
         this.prisma,
-        refreshDto.refreshToken,
-        false,
+        existingOAuthAccount.user,
       );
 
-      if(matchedToken){
-        await this.prisma.refreshToken.update({
-          where: {
-            id: matchedToken.id,
-          },
-          data: {
-            revoked: true,
-            revokedAt: new Date(),
-          },
-        });
-      }
-
-      return { message: 'Logout successful'};
-    }
-
-
-
-    async loginWithGithub(profile: GithubProfile): Promise<AuthResponse> {
-
-      const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
-        where : {
-          provider_providerUserId: {
-            provider: 'github',
-            providerUserId: profile.providerUserId,
-          },
-        },
-        include: { user: true},
+      await this.audit.log({
+        event: `OAUTH_${provider.toUpperCase()}_SUCCESS` as any,
+        userId: existingOAuthAccount.user.id,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        metadata: { provider, providerUserId: profile.providerUserId, returning: true },
       });
 
-      if (existingOAuthAccount) {
-        const { accessToken , refreshToken } = await this.issueTokenPair(
-          this.prisma,
-          existingOAuthAccount.user,
-        );
-        return {
-          accessToken,
-          refreshToken,
-          user : this.toUserResponse(existingOAuthAccount.user),
-        };
-      }
+      return {
+        accessToken,
+        refreshToken,
+        user: this.toUserResponse(existingOAuthAccount.user),
+      };
+    }
 
-      if(!profile.email || !profile.emailVerified) {
-        throw new BadRequestException(
-           'Your GitHub account needs a verified email address to sign in.',
-        );
-      }
+    if (!profile.email || !profile.emailVerified) {
+      await this.audit.log({
+        event: `OAUTH_${provider.toUpperCase()}_FAILURE` as any,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        metadata: { provider, reason: 'unverified_email' },
+      });
+      throw new BadRequestException(
+        `Your ${provider} account needs a verified email address to sign in.`,
+      );
+    }
 
-      const user = await this.prisma.$transaction(async (tx) => {
-        const existingUser = await tx.user.findUnique({
-          where: { email: profile.email!},
-        });
+    const { user, linked } = await this.prisma.$transaction(async (tx) => {
+      const existingUser = await tx.user.findUnique({
+        where: { email: profile.email! },
+      });
 
-        const user = 
+      const user =
         existingUser ??
         (await tx.user.create({
           data: {
             email: profile.email!,
             name: profile.name,
             password: null,
-            role: 'USER'
+            role: 'USER',
           },
         }));
-        await tx.oAuthAccount.create({
-          data: {
-            id: randomUUID(),
-            provider: 'github',
-            providerUserId: profile.providerUserId,
-            userId: user.id,
-          },
-        });
 
-        return user;
-      
-      
+      await tx.oAuthAccount.create({
+        data: {
+          id: randomUUID(),
+          provider,
+          providerUserId: profile.providerUserId,
+          userId: user.id,
+        },
+      });
+
+      return { user, linked: !!existingUser };
     });
 
     const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
 
-    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+    await this.audit.log({
+      event: `OAUTH_${provider.toUpperCase()}_SUCCESS` as any,
+      userId: user.id,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { provider, providerUserId: profile.providerUserId, returning: false, linked },
+    });
 
-    }
-  
+    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+  }
+
+  async loginWithGithub(
+    profile: GithubProfile,
+    ctx: { ip: string; userAgent?: string },
+  ): Promise<AuthResponse> {
+    return this.handleOAuthLogin('github', profile, ctx);
+  }
+
+  async loginWithGoogle(
+    profile: GoogleProfile,
+    ctx: { ip: string; userAgent?: string },
+  ): Promise<AuthResponse> {
+    return this.handleOAuthLogin('google', profile, ctx);
+  }
 }

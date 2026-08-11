@@ -32,3 +32,8 @@ export type RefreshToken = Prisma.RefreshTokenModel
  * 
  */
 export type OAuthAccount = Prisma.OAuthAccountModel
+/**
+ * Model AuditLog
+ * 
+ */
+export type AuditLog = Prisma.AuditLogModel

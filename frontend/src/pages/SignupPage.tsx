@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signup } from "../lib/api";
+import OAuthButtons from "./components/OAuthButtons";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -33,6 +34,7 @@ export default function SignupPage() {
         <p className="auth-eyebrow">New account</p>
         <h1>Create account</h1>
         <p className="auth-subtitle">Sign up to get started</p>
+
 
         <label htmlFor="name">Name</label>
         <input
@@ -71,6 +73,11 @@ export default function SignupPage() {
         <button type="submit" disabled={loading}>
           {loading ? "Creating account…" : "Sign up"}
         </button>
+        
+         
+         <p className="oauth-divider">or</p>
+        <OAuthButtons />
+        
 
         <p className="auth-switch">
           Already have an account? <Link to="/login">Sign in</Link>
