@@ -8,9 +8,8 @@ import {SignUpDto} from './dto/signup.dto';
 import {LoginDto} from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { triggerAsyncId } from 'node:async_hooks';
-import {GithubProfile} from './strategies/github.strategy';
+import { GithubProfile} from './github-oauth.service';
 import { GoogleProfile } from './google-oidc.service';
-
 
 
 type AuthUser = Pick<User, 'id' | 'email' | 'name' | 'role'>;

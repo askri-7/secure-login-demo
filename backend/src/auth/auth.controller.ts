@@ -1,11 +1,10 @@
-import { Body,Get, Controller, Post , Req, Res, UnauthorizedException, UseGuards, BadRequestException} from '@nestjs/common';
+import { Body,Get, Controller, Post , Query,Req, Res, UnauthorizedException, UseGuards, BadRequestException} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import type { Request, Response } from 'express';
-import type { GithubProfile } from './strategies/github.strategy';
-import { GithubAuthGuard } from './guards/github-auth.guard';
+import { GithubOAuthService, type GithubAuthRequest } from './github-oauth.service';;
 import { GoogleOidcService, type GoogleAuthRequest } from './google-oidc.service';
 
 
@@ -17,8 +16,9 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private googleOidcService: GoogleOidcService,
+    private githubOAuthService: GithubOAuthService, 
   ) {}
-
+   // google cookie helper
   private setGoogleAuthRequestCookie(res: Response, request: GoogleAuthRequest){
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -67,6 +67,28 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   }
+
+  // github cookie helper 
+
+  private setGithubStateCookie(res: Response, state: string) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('github_oauth_state', state, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProduction,
+      path: '/',
+      maxAge: 5 * 60 * 1000,
+    });
+  }
+
+  private getGithubStateCookie(req: Request): string | null {
+    return this.getCookie(req, 'github_oauth_state');
+  }
+
+  private clearGithubStateCookie(res: Response) {
+    res.clearCookie('github_oauth_state', { path: '/' });
+  }
+
 
   private clearAuthCookies(res: Response) {
     res.clearCookie('accessToken', { path: '/' });
@@ -132,36 +154,44 @@ private getCookie(req: Request, cookieName: string) {
 
     return { message: 'Logout successful' };
   }
- // Step 1 of the OAuth dance: the frontend just navigates the browser
-  // here (a normal link, not a fetch call). GithubAuthGuard triggers
-  // Passport, which immediately redirects the browser to GitHub's
-  // consent screen — nothing in this method body ever actually runs.
+ 
 
-  @Get('github')
-  @UseGuards(GithubAuthGuard)// redirection 
-  githubLogin(){} //empty
-
-
-  // Step 2: GitHub redirects the browser back here once the user
-  // approves. GithubAuthGuard has already run GithubStrategy.validate()
-  // by this point, so req.user is the GithubProfile we built there.
-  @Get('github/callback')
-  @UseGuards(GithubAuthGuard)
-
-  async githubCallback(@Req() req: Request, @Res() res: Response) {
-    const profile = req.user as GithubProfile;
-    const session = await this.authService.loginWithGithub(profile);
-    this.setAuthCookies(res , session.accessToken, session.refreshToken);
-    
-
-    // This route is a real browser navigation (the user got here by
-    // being redirected from GitHub), not a fetch() call, so we send
-    // an actual redirect back to the frontend rather than JSON.
-
-    //const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-    //res.redirect(`${frontendUrl}/`);
-    res.redirect(`http://localhost:3000`);
+@Get('github')
+  async githubLogin(@Res() res: Response) {
+    const { url, request } = this.githubOAuthService.buildAuthorizationRequest();
+    this.setGithubStateCookie(res, request.state);
+    res.redirect(url.toString());
   }
+
+  @Get('github/callback')
+  async githubCallback(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('code') code: string,
+    @Query('state') state: string,
+  ) {
+    const expectedState = this.getGithubStateCookie(req);
+    this.clearGithubStateCookie(res);
+
+    if (!expectedState || expectedState !== state) {
+      throw new UnauthorizedException(
+        'GitHub sign-in session expired or was tampered with — please try again.',
+      );
+    }
+
+    if (!code) {
+      throw new BadRequestException('GitHub authorization code missing');
+    }
+
+    const profile = await this.githubOAuthService.completeAuthorization(code);
+    const session = await this.authService.loginWithGithub(profile);
+    this.setAuthCookies(res, session.accessToken, session.refreshToken);
+
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    res.redirect(frontendUrl);
+  }
+
+
 
   @Get('google')
   async googleLogin(@Res() res: Response) {
@@ -194,9 +224,9 @@ private getCookie(req: Request, cookieName: string) {
     const session = await this.authService.loginWithGoogle(profile);
     this.setAuthCookies(res , session.accessToken, session.refreshToken);
 
-    //const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-    //res.redirect(`${frontendUrl}/`);
-    res.redirect(`http://localhost:3000`);
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/`);
+    //res.redirect(`http://localhost:3000`);
   }
 
 
