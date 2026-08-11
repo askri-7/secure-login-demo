@@ -26,7 +26,7 @@ This repository contains the implementation of a secure login flow using NestJS,
 
 - Add production deployment documentation covering environment variables, SSL certificates, Nginx reverse proxy configuration, and updating OAuth redirect URIs from localhost to production domains.
 - Add monitoring and structured logging to replace `console.error` with a production-grade logger (e.g., Pino or Winston) for searchable, aggregated logs.
-- Add integration and E2E tests for refresh token rotation, logout flows, and OAuth account linking when the team is ready to invest in test coverage.
+
 
 ## Intended Repository Structure
 
