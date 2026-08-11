@@ -9,7 +9,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { GoogleOidcService } from './google-oidc.service';
 import { GithubOAuthService } from './github-oauth.service';
-
+import { AuditLogService } from './audit-log.service';
+import { TokenCleanupService } from './tokencleanup.service';
 @Module({
   imports: [
     PrismaModule,
@@ -29,7 +30,10 @@ import { GithubOAuthService } from './github-oauth.service';
       },
     }),
   ],
-  providers: [AuthService, JwtStrategy, GithubOAuthService, GoogleOidcService , JwtAuthGuard, RolesGuard],
+  providers: [AuthService,
+     JwtStrategy, GithubOAuthService,
+      GoogleOidcService , JwtAuthGuard,
+       RolesGuard, AuditLogService,  TokenCleanupService,],
   controllers: [AuthController],
   exports: [JwtAuthGuard, RolesGuard],
 })

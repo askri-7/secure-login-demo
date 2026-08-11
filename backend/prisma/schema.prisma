@@ -32,17 +32,20 @@ model User {
 
 
 model RefreshToken {
-  id            String   @id @db.Uuid
-  hashedToken   String
-  userId        Int
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt     DateTime
-  revoked       Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  revokedAt     DateTime?  
+  id           String   @id @db.Uuid
+  tokenId      String   @unique  // ← first 16 chars of raw token — indexed lookup
+  hashedSecret String              // ← bcrypt hash of remaining 112 chars
+  userId       Int
+  expiresAt    DateTime
+  revoked      Boolean  @default(false)
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
 
-  @@index([userId])         // fast refresh query
-  @@index([revokedAt])     // fast cleanup queries
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([revokedAt]) 
+  @@index([expiresAt])
 }
 
 model OAuthAccount {
@@ -54,4 +57,18 @@ model OAuthAccount {
   createdAt      DateTime @default(now())
 
   @@unique([provider, providerUserId]) // one GitHub account can only ever link to one User
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    Int?
+  event     String
+  ip        String
+  userAgent String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([event])
+  @@index([createdAt])
 }

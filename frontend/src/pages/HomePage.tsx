@@ -29,8 +29,9 @@ export default function HomePage() {
           </button>
         </div>
 
-        <p className="oauth-divider">or</p>
+       <div> <span className="oauth-divider">or</span>
         <OAuthButtons />
+        </div>
       </div>
     </div>
   );

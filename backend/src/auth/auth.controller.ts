@@ -6,7 +6,7 @@ import { RefreshDto } from './dto/refresh.dto';
 import type { Request, Response } from 'express';
 import { GithubOAuthService, type GithubAuthRequest } from './github-oauth.service';;
 import { GoogleOidcService, type GoogleAuthRequest } from './google-oidc.service';
-
+import { Throttle } from '@nestjs/throttler';
 
 
 @Controller('auth')
@@ -47,6 +47,8 @@ export class AuthController {
       res.clearCookie('googleAuthRequest', { path: '/'});
     }
 
+
+   // set normal auth cookie helper 
  // take an http respose object and two token and tell the browser to store them as cookie
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
     const isProduction = process.env.NODE_ENV === 'production';
@@ -88,6 +90,13 @@ private getCookie(req: Request, cookieName: string) {
 
     return null;
   }
+  private getClientInfo(req: Request) {
+    return {
+      ip: req.ip || 'unknown',
+      userAgent: req.headers['user-agent'] || undefined,
+    };
+  }
+
   
 
   // github cookie helper 
@@ -114,15 +123,17 @@ private getCookie(req: Request, cookieName: string) {
 
   
   @Post('signup')
-  async signup(@Body() signUpDto: SignUpDto, @Res({ passthrough: true}) res: Response) {
-    const session = await this.authService.signUp(signUpDto);
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) 
+  async signup(@Body() signUpDto: SignUpDto, @Res({ passthrough: true}) res: Response,  @Req() req: Request) {
+    const session = await this.authService.signUp(signUpDto, this.getClientInfo(req));
     this.setAuthCookies(res, session.accessToken, session.refreshToken)
     return {user: session.user};
   }
 
   @Post('login') 
-  async login(@Body() loginDto: LoginDto,@Res({ passthrough: true })res: Response) {
-    const session = await this.authService.login(loginDto);
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) 
+  async login(@Body() loginDto: LoginDto,@Res({ passthrough: true })res: Response,  @Req() req: Request) {
+    const session = await this.authService.login(loginDto, this.getClientInfo(req));
     this.setAuthCookies(res, session.accessToken, session.refreshToken);
 
     return { user: session.user };
@@ -136,7 +147,7 @@ private getCookie(req: Request, cookieName: string) {
     if (!refreshToken) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
-    const session = await this.authService.refresh({ refreshToken });
+    const session = await this.authService.refresh({ refreshToken }, this.getClientInfo(req));
     this.setAuthCookies(res, session.accessToken, session.refreshToken);
 
     return { user: session.user };
@@ -148,7 +159,7 @@ private getCookie(req: Request, cookieName: string) {
    
      // revoke the refresh token 
     if (refreshToken) {
-      await this.authService.logout({ refreshToken });
+      await this.authService.logout({ refreshToken }, this.getClientInfo(req));
     }
 
     this.clearAuthCookies(res);
@@ -185,7 +196,7 @@ private getCookie(req: Request, cookieName: string) {
     }
 
     const profile = await this.githubOAuthService.completeAuthorization(code);
-    const session = await this.authService.loginWithGithub(profile);
+    const session = await this.authService.loginWithGithub(profile, this.getClientInfo(req));
     this.setAuthCookies(res, session.accessToken, session.refreshToken);
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
@@ -222,7 +233,7 @@ private getCookie(req: Request, cookieName: string) {
     currentUrl.search =  new  URL(req.url , callbackURL).search;
 
     const profile = await this.googleOidcService.completeAuthorization(currentUrl , authRequest);
-    const session = await this.authService.loginWithGoogle(profile);
+    const session = await this.authService.loginWithGoogle(profile, this.getClientInfo(req));
     this.setAuthCookies(res , session.accessToken, session.refreshToken);
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
