@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import OAuthButtons from "./components/OAuthButtons";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -27,6 +28,9 @@ export default function HomePage() {
             Log in
           </button>
         </div>
+
+        <p className="oauth-divider">or</p>
+        <OAuthButtons />
       </div>
     </div>
   );
