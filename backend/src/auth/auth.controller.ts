@@ -26,7 +26,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       secure: isProduction,
-      path: '/auth/google',
+      path: '/',
       maxAge: 5 * 60 * 1000,
 
     });
@@ -36,14 +36,15 @@ export class AuthController {
       const raw = this.getCookie(req, 'googleAuthRequest');
       if (!raw) return null ;
       try {
-        return JSON.parse(raw) as GoogleAuthRequest;
+        const decoded = decodeURIComponent(raw); 
+        return JSON.parse(decoded) as GoogleAuthRequest;
       }catch{
         return null ;
       }
     }
    
     private clearGoogleAuthRequestCookie(res: Response) {
-      res.clearCookie('googleAthRequest', { path: '/auth/google'});
+      res.clearCookie('googleAuthRequest', { path: '/'});
     }
 
  // take an http respose object and two token and tell the browser to store them as cookie

@@ -27,7 +27,7 @@ export class GoogleOidcService implements OnModuleInit {
         const clientId = process.env.GOOGLE_CLIENT_ID;
         const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
-        if (!clientId || clientSecret) {
+        if (!clientId || !clientSecret) {
             throw new Error('GOOGLE_CLIENT_ID AND GOOGLE_CLIENT_SECRET  are required');
 
         }
@@ -59,7 +59,7 @@ export class GoogleOidcService implements OnModuleInit {
             state,
             nonce,
             code_challenge: codeChallenge,
-            code_challenge_methode: 'S256',
+            code_challenge_method: 'S256',
         });
 
         return { url , request: {state, nonce , codeVerifier} };
