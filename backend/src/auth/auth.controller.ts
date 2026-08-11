@@ -1,4 +1,4 @@
-import { Body,Get, Controller, Post , Req, Res, UnauthorizedException, UseGuards} from '@nestjs/common';
+import { Body,Get, Controller, Post , Req, Res, UnauthorizedException, UseGuards, BadRequestException} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -6,6 +6,7 @@ import { RefreshDto } from './dto/refresh.dto';
 import type { Request, Response } from 'express';
 import type { GithubProfile } from './strategies/github.strategy';
 import { GithubAuthGuard } from './guards/github-auth.guard';
+import { GoogleOidcService, type GoogleAuthRequest } from './google-oidc.service';
 
 
 
@@ -13,8 +14,38 @@ import { GithubAuthGuard } from './guards/github-auth.guard';
 
 
 export class AuthController {
-  constructor(private authService: AuthService) {}
- 
+  constructor(
+    private authService: AuthService,
+    private googleOidcService: GoogleOidcService,
+  ) {}
+
+  private setGoogleAuthRequestCookie(res: Response, request: GoogleAuthRequest){
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie('googleAuthRequest', JSON.stringify(request), {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProduction,
+      path: '/auth/google',
+      maxAge: 5 * 60 * 1000,
+
+    });
+  }
+    private getGoogleAuthRequestCookie(req: Request): GoogleAuthRequest | null {
+        
+      const raw = this.getCookie(req, 'googleAuthRequest');
+      if (!raw) return null ;
+      try {
+        return JSON.parse(raw) as GoogleAuthRequest;
+      }catch{
+        return null ;
+      }
+    }
+   
+    private clearGoogleAuthRequestCookie(res: Response) {
+      res.clearCookie('googleAthRequest', { path: '/auth/google'});
+    }
+
  // take an http respose object and two token and tell the browser to store them as cookie
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
     const isProduction = process.env.NODE_ENV === 'production';
@@ -106,8 +137,8 @@ private getCookie(req: Request, cookieName: string) {
   // consent screen — nothing in this method body ever actually runs.
 
   @Get('github')
-  @UseGuards(GithubAuthGuard)
-  githubLogin(){} // redirection 
+  @UseGuards(GithubAuthGuard)// redirection 
+  githubLogin(){} //empty
 
 
   // Step 2: GitHub redirects the browser back here once the user
@@ -125,6 +156,42 @@ private getCookie(req: Request, cookieName: string) {
     // This route is a real browser navigation (the user got here by
     // being redirected from GitHub), not a fetch() call, so we send
     // an actual redirect back to the frontend rather than JSON.
+
+    //const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    //res.redirect(`${frontendUrl}/`);
+    res.redirect(`http://localhost:3000`);
+  }
+
+  @Get('google')
+  async googleLogin(@Res() res: Response) {
+    const { url , request} = await this.googleOidcService.buildAuthorizationRequest();
+    this.setGoogleAuthRequestCookie(res, request);
+    res.redirect(url.toString());
+  }
+
+  @Get('google/callback')
+  async googleCallback(@Req() req: Request, @Res() res: Response) {
+    const authRequest = this.getGoogleAuthRequestCookie(req);
+    this.clearGoogleAuthRequestCookie(res);
+
+    if(!authRequest) {
+      throw new BadRequestException(
+         'Google sign-in session expired or was tampered with — please try again.',
+      );
+    }
+
+    const callbackURL = process.env.GOOGLE_CALLBACK_URL;
+
+    if(!callbackURL) {
+      throw new Error('GOOGLE_CALLBACK_URL is required');
+    }
+
+    const currentUrl = new URL(callbackURL);
+    currentUrl.search =  new  URL(req.url , callbackURL).search;
+
+    const profile = await this.googleOidcService.completeAuthorization(currentUrl , authRequest);
+    const session = await this.authService.loginWithGoogle(profile);
+    this.setAuthCookies(res , session.accessToken, session.refreshToken);
 
     //const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     //res.redirect(`${frontendUrl}/`);

@@ -9,6 +9,9 @@ import {LoginDto} from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { triggerAsyncId } from 'node:async_hooks';
 import {GithubProfile} from './strategies/github.strategy';
+import { GoogleProfile } from './google-oidc.service';
+
+
 
 type AuthUser = Pick<User, 'id' | 'email' | 'name' | 'role'>;
 
@@ -230,69 +233,94 @@ async refresh(refreshDto: RefreshDto): Promise<AuthResponse> {
 
 
 
-    async loginWithGithub(profile: GithubProfile): Promise<AuthResponse> {
+  private async handleOAthLogin(
+    provider: string,
+    profile: {  providerUserId: string; email: string | null; emailVerified: boolean; name: string},
+  ): Promise<AuthResponse> {
+    const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider,
+          providerUserId: profile.providerUserId,
 
-      const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
-        where : {
-          provider_providerUserId: {
-            provider: 'github',
-            providerUserId: profile.providerUserId,
-          },
         },
-        include: { user: true},
-      });
-
-      if (existingOAuthAccount) {
-        const { accessToken , refreshToken } = await this.issueTokenPair(
-          this.prisma,
-          existingOAuthAccount.user,
-        );
-        return {
-          accessToken,
-          refreshToken,
-          user : this.toUserResponse(existingOAuthAccount.user),
-        };
-      }
-
-      if(!profile.email || !profile.emailVerified) {
-        throw new BadRequestException(
-           'Your GitHub account needs a verified email address to sign in.',
-        );
-      }
-
-      const user = await this.prisma.$transaction(async (tx) => {
-        const existingUser = await tx.user.findUnique({
-          where: { email: profile.email!},
-        });
-
-        const user = 
-        existingUser ??
-        (await tx.user.create({
-          data: {
-            email: profile.email!,
-            name: profile.name,
-            password: null,
-            role: 'USER'
-          },
-        }));
-        await tx.oAuthAccount.create({
-          data: {
-            id: randomUUID(),
-            provider: 'github',
-            providerUserId: profile.providerUserId,
-            userId: user.id,
-          },
-        });
-
-        return user;
-      
-      
+      },
+      include: {user : true},
     });
 
-    const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+    if (existingOAuthAccount){
+       const {accessToken, refreshToken} = await this.issueTokenPair(this.prisma, existingOAuthAccount.user,);
+       
+       return {
+        accessToken,
+        refreshToken,
+        user: this.toUserResponse(existingOAuthAccount.user),
+       };
+      }
+      
 
+    // We only trust the email for linking/creating a real account if the
+    // provider itself reports it as verified — this is what stops
+    // someone from hijacking an existing account by claiming an email
+    // they don't actually control (see the GitHub strategy for the
+    // full explanation of this attack).
+    
+    if(!profile.email || !profile.emailVerified){
+      throw new BadRequestException(
+        `Your ${provider} account needs a verified email adress to sign in.`,
+      );
+    }
+    // Case 2 & 3 happen together in one transaction: either attach a new
+    // OAuthAccount row to an existing User with a matching email, or
+    // create both the User and the OAuthAccount from scratch. Wrapping
+    // this in a transaction means we never end up with an OAuthAccount
+    // pointing at a User that failed to be created, or vice versa.
+
+    const user = await this.prisma.$transaction(async (tx) =>{
+      const existingUser = await tx.user.findUnique({
+        where : { email: profile.email! },
+      });
+
+      const user = 
+      existingUser ??
+      (await tx.user.create({
+        data: {
+          email: profile.email!,
+          name: profile.name,
+          password: null,
+          role: 'USER',
+        },
+
+      }));
+      await tx.oAuthAccount.create({
+        data: {
+          id: randomUUID(),
+          provider,
+          providerUserId: profile.providerUserId,
+          userId: user.id,
+        },
+      });
+      return user;
+    });
+
+    const { accessToken , refreshToken} = await  this.issueTokenPair(this.prisma, user);
+    
     return { accessToken, refreshToken, user: this.toUserResponse(user) };
 
-    }
+  }   
   
+
+
+
+
+  
+
+  async loginWithGithub(profile: GithubProfile): Promise<AuthResponse> {
+    return this.handleOAthLogin('github', profile);
+  }
+  
+
+  async loginWithGoogle(profile: GoogleProfile): Promise<AuthResponse>{
+    return this.handleOAthLogin('google', profile);
+  }
 }

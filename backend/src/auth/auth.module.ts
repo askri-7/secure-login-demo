@@ -8,6 +8,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { GithubStrategy } from './strategies/github.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { GoogleOidcService } from './google-oidc.service';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { RolesGuard } from './guards/roles.guard';
       },
     }),
   ],
-  providers: [AuthService, JwtStrategy, GithubStrategy, JwtAuthGuard, RolesGuard],
+  providers: [AuthService, JwtStrategy, GithubStrategy, GoogleOidcService , JwtAuthGuard, RolesGuard],
   controllers: [AuthController],
   exports: [JwtAuthGuard, RolesGuard],
 })
