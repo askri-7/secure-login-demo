@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 
 export type GithubProfile = {
   providerUserId: string;
@@ -10,14 +10,15 @@ export type GithubProfile = {
 
 export type GithubAuthRequest = {
   state: string;
+  codeVerifier: string; 
 };
 
 @Injectable()
 export class GithubOAuthService {
-  
-   // Step 1: Build the GitHub authorization URL and generate a CSRF state token.
-   //The caller must store `request.state` in an httpOnly cookie.
-   
+
+  // Step 1: Build the GitHub authorization URL with PKCE + CSRF state.
+  // The caller must store `request.state` and `request.codeVerifier` in an httpOnly cookie.
+
   buildAuthorizationRequest(): { url: URL; request: GithubAuthRequest } {
     const clientID = process.env.GITHUB_CLIENT_ID;
     const callbackURL = process.env.GITHUB_CALLBACK_URL;
@@ -27,28 +28,36 @@ export class GithubOAuthService {
     }
 
     const state = randomBytes(32).toString('hex');
+    const codeVerifier = randomBytes(32).toString('base64url'); 
+
+    // PKCE: SHA-256 hash of verifier, base64url-encoded
+    const codeChallenge = createHash('sha256')
+      .update(codeVerifier)
+      .digest('base64url');
 
     const params = new URLSearchParams({
       client_id: clientID,
       redirect_uri: callbackURL,
       scope: 'user:email',
       state,
+      code_challenge: codeChallenge,        
+      code_challenge_method: 'S256',       
     });
 
     const url = new URL(`https://github.com/login/oauth/authorize?${params.toString()}`);
 
-    return { url, request: { state } };
+    return { url, request: { state, codeVerifier } };  
   }
 
-  //Step 2: Exchange the authorization code for an access token,
- //then fetch and verify the user's email addresses.
-   
-  async completeAuthorization(code: string): Promise<GithubProfile> {
-    const accessToken = await this.exchangeCode(code);
+  // Step 2: Exchange the authorization code for an access token,
+  // then fetch and verify the user's email addresses.
+
+  async completeAuthorization(code: string, codeVerifier: string): Promise<GithubProfile> {  // ← ADDED codeVerifier param
+    const accessToken = await this.exchangeCode(code, codeVerifier);  // ← PASS codeVerifier
     return this.fetchUserProfile(accessToken);
   }
 
-  private async exchangeCode(code: string): Promise<string> {
+  private async exchangeCode(code: string, codeVerifier: string): Promise<string> {  // ← ADDED param
     const clientID = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
     const callbackURL = process.env.GITHUB_CALLBACK_URL;
@@ -64,6 +73,7 @@ export class GithubOAuthService {
         client_secret: clientSecret,
         code,
         redirect_uri: callbackURL,
+        code_verifier: codeVerifier,  
       }),
     });
 
@@ -83,7 +93,7 @@ export class GithubOAuthService {
   }
 
   private async fetchUserProfile(accessToken: string): Promise<GithubProfile> {
-    // --- Fetch verified emails ---
+    
     let emails: Array<{ email: string; primary: boolean; verified: boolean }> = [];
 
     try {

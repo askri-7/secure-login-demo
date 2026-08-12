@@ -101,25 +101,30 @@ private getCookie(req: Request, cookieName: string) {
 
   // github cookie helper 
 
-  private setGithubStateCookie(res: Response, state: string) {
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.cookie('github_oauth_state', state, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: isProduction,
-      path: '/',
-      maxAge: 5 * 60 * 1000,
-    });
-  }
+  private setGithubAuthRequestCookie(res: Response, request: GithubAuthRequest) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.cookie('github_auth_request', JSON.stringify(request), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    path: '/',
+    maxAge: 5 * 60 * 1000,
+  });
+}
 
-  private getGithubStateCookie(req: Request): string | null {
-    return this.getCookie(req, 'github_oauth_state');
+private getGithubAuthRequestCookie(req: Request): GithubAuthRequest | null {
+  const raw = this.getCookie(req, 'github_auth_request');
+  if (!raw) return null;
+  try {
+    return JSON.parse(decodeURIComponent(raw)) as GithubAuthRequest;
+  } catch {
+    return null;
   }
+}
 
-  private clearGithubStateCookie(res: Response) {
-    res.clearCookie('github_oauth_state', { path: '/' });
-  }
-
+private clearGithubAuthRequestCookie(res: Response) {
+  res.clearCookie('github_auth_request', { path: '/' });
+}
 
   
   @Post('signup')
@@ -167,41 +172,41 @@ private getCookie(req: Request, cookieName: string) {
     return { message: 'Logout successful' };
   }
  
-
 @Get('github')
-  async githubLogin(@Res() res: Response) {
-    const { url, request } = this.githubOAuthService.buildAuthorizationRequest();
-    this.setGithubStateCookie(res, request.state);
-    res.redirect(url.toString());
+async githubLogin(@Res() res: Response) {
+  const { url, request } = this.githubOAuthService.buildAuthorizationRequest();
+  this.setGithubAuthRequestCookie(res, request);  // ← store full request (state + codeVerifier)
+  res.redirect(url.toString());
+}
+
+@Get('github/callback')
+async githubCallback(
+  @Req() req: Request,
+  @Res() res: Response,
+  @Query('code') code: string,
+  @Query('state') state: string,
+) {
+  const authRequest = this.getGithubAuthRequestCookie(req);
+  this.clearGithubAuthRequestCookie(res);
+
+  if (!authRequest || authRequest.state !== state) {
+    throw new UnauthorizedException(
+      'GitHub sign-in session expired or was tampered with — please try again.',
+    );
   }
 
-  @Get('github/callback')
-  async githubCallback(
-    @Req() req: Request,
-    @Res() res: Response,
-    @Query('code') code: string,
-    @Query('state') state: string,
-  ) {
-    const expectedState = this.getGithubStateCookie(req);
-    this.clearGithubStateCookie(res);
-
-    if (!expectedState || expectedState !== state) {
-      throw new UnauthorizedException(
-        'GitHub sign-in session expired or was tampered with — please try again.',
-      );
-    }
-
-    if (!code) {
-      throw new BadRequestException('GitHub authorization code missing');
-    }
-
-    const profile = await this.githubOAuthService.completeAuthorization(code);
-    const session = await this.authService.loginWithGithub(profile, this.getClientInfo(req));
-    this.setAuthCookies(res, session.accessToken, session.refreshToken);
-
-    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    res.redirect(frontendUrl);
+  if (!code) {
+    throw new BadRequestException('GitHub authorization code missing');
   }
+
+  // ← PASS codeVerifier to completeAuthorization
+  const profile = await this.githubOAuthService.completeAuthorization(code, authRequest.codeVerifier);
+  const session = await this.authService.loginWithGithub(profile, this.getClientInfo(req));
+  this.setAuthCookies(res, session.accessToken, session.refreshToken);
+
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+  res.redirect(frontendUrl);
+}
 
 
 
