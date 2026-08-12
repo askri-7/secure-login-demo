@@ -8,9 +8,23 @@ import { fetchMe } from "./lib/api";
 
 type User = { id: number; email: string; name: string; role: string };
 
-// With httpOnly cookies, JS can never read the token directly (that's the
-// point — it protects against XSS). So "am I logged in?" is answered by
-// asking the backend, not by checking localStorage like before.
+/**
+ * RootPage ("/"):
+ * On first visit with no session:
+ *   - fetchMe() → 401 → fetchWithAuth tries refresh → 401
+ *   - fetchWithAuth returns 401 (NO redirect)
+ *   - handleResponse throws → RootPage catches → user = null
+ *   - Renders <LoginPage /> at "/" — URL stays "/"
+ *
+ * On visit with valid session:
+ *   - fetchMe() succeeds → user is set → renders <HomePage />
+ *
+ * On visit with expired access token but valid refresh token:
+ *   - fetchMe() → 401 → fetchWithAuth calls /auth/refresh
+ *   - Backend issues new cookies → fetchWithAuth retries /users/me
+ *   - Succeeds silently → user is set → renders <HomePage />
+ */
+
 function RootPage() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
@@ -22,10 +36,23 @@ function RootPage() {
       .finally(() => setChecking(false));
   }, []);
 
-  if (checking) return null; // brief blank instead of flashing the wrong page
+  if (checking) {
+       return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+        <p>Loading…</p>
+      </div>
+    )
+  }
 
   return user ? <ProfilePage user={user} onLoggedOut={() => setUser(null)} /> : <HomePage />;
 }
+
+/**
+ * ProtectedProfile ("/profile"):
+ * If not authenticated → redirects to "/login"
+ * If authenticated → renders ProfilePage
+ */
+
 
 export default function App() {
   return (
