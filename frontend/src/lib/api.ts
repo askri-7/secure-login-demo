@@ -13,10 +13,9 @@ type ApiError = {
 // TOKEN REFRESH STATE (prevents race conditions)
 // ─────────────────────────────────────────────────────────────
 
-let isRefreshing = false;
+let isRefreshing = false;// ← global flag, shared by ALL requests
 let refreshPromise: Promise<void> | null = null;
 
-// Subscribers waiting for the refresh to complete
 let refreshSubscribers: Array<(success: boolean) => void> = [];
 
 function notifySubscribers(success: boolean) {
@@ -37,7 +36,7 @@ function addRefreshSubscriber(cb: (success: boolean) => void) {
  * 1. Sends credentials (httpOnly cookies) automatically
  * 2. On 401 → calls /auth/refresh to get a new accessToken
  * 3. Retries the original request once after refresh
- * 4. If refresh also fails → redirects to /login
+ * 4. If refresh also fails → returns the 401 response (NO redirect)
  *
  * Race-condition safe: if 5 requests hit 401 at the same time,
  * only ONE /auth/refresh call is made. The other 4 wait and
@@ -46,8 +45,9 @@ function addRefreshSubscriber(cb: (success: boolean) => void) {
 async function fetchWithAuth(
   url: string,
   options: RequestInit = {},
-  isRetry = false
+  isRetry = false  // isRetry = "I already refreshed once, don't loop"
 ): Promise<Response> {
+  // fetch /auth/refresh
   const res = await fetch(url, {
     ...options,
     credentials: "include",
@@ -62,25 +62,23 @@ async function fetchWithAuth(
     return res;
   }
 
-  // ── 401 detected ──
+  //401 detected 
 
   // If another request is already refreshing → wait for it
   if (isRefreshing && refreshPromise) {
     return new Promise((resolve) => {
       addRefreshSubscriber((success) => {
         if (success) {
-          // Retry original request with new cookie (browser auto-sends)
           resolve(fetchWithAuth(url, options, true));
         } else {
-          // Refresh failed → return the 401 so caller handles it
-          resolve(res);
+          resolve(res); // return original 401
         }
       });
     });
   }
 
   // ── We are the first 401 → start the refresh ──
-  isRefreshing = true;
+  isRefreshing = true;  
 
   refreshPromise = (async () => {
     try {
@@ -93,21 +91,16 @@ async function fetchWithAuth(
         throw new Error("Refresh failed");
       }
 
+      // FIX: set isRefreshing = false BEFORE notifying subscribers
+      // so new requests don't get stuck waiting on a resolved promise
+      isRefreshing = false;
       notifySubscribers(true);
     } catch {
+      isRefreshing = false; // ← FIX: moved BEFORE notify
       notifySubscribers(false);
-      // Clear cookies by calling logout, then redirect
-      try {
-        await fetch(`${API_URL}/auth/logout`, {
-          method: "POST",
-          credentials: "include",
-        });
-      } catch {
-        // ignore
-      }
-      window.location.href = "/login";
+      // FIX: removed window.location.href = "/login"
+      // Let the caller (React component) decide what to do
     } finally {
-      isRefreshing = false;
       refreshPromise = null;
     }
   })();
@@ -115,7 +108,6 @@ async function fetchWithAuth(
   await refreshPromise;
 
   // After refresh completes, retry the original request
-  // The browser now has the new accessToken cookie
   return fetchWithAuth(url, options, true);
 }
 
@@ -159,12 +151,21 @@ export async function signup(name: string, email: string, password: string): Pro
   return handleResponse(res, "Signup failed");
 }
 
+/**
+ * Explicit logout:
+ * Calls backend to revoke the refresh token, then clears cookies,
+ * then redirects to /login.
+ */
 export async function logout(): Promise<void> {
-  await fetch(`${API_URL}/auth/logout`, {
-    method: "POST",
-    credentials: "include",
-  });
-  window.location.href = "/login";
+  try {
+    await fetch(`${API_URL}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch {
+    // ignore — cookies will expire naturally
+  }
+  window.location.href = "/";
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -175,9 +176,3 @@ export async function fetchMe(): Promise<User> {
   const res = await fetchWithAuth(`${API_URL}/users/me`);
   return handleResponse(res, "Session expired, please log in again");
 }
-
-// Example: add more protected endpoints here
-// export async function fetchDashboard(): Promise<DashboardData> {
-//   const res = await fetchWithAuth(`${API_URL}/dashboard`);
-//   return handleResponse(res, "Failed to load dashboard");
-// }
