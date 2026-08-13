@@ -43,9 +43,15 @@ export class AuthController {
       }
     }
    
-    private clearGoogleAuthRequestCookie(res: Response) {
-      res.clearCookie('googleAuthRequest', { path: '/'});
-    }
+private clearGoogleAuthRequestCookie(res: Response) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.clearCookie('googleAuthRequest', {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: isProduction,
+    path: '/',
+  });
+}
 
 
    // set normal auth cookie helper 
@@ -69,10 +75,19 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   } 
-   private clearAuthCookies(res: Response) {
-    res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/' });
-  }
+private clearAuthCookies(res: Response) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  const cookieOpts = {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: isProduction,
+    path: '/',
+  };
+
+  res.clearCookie('accessToken', cookieOpts);
+  res.clearCookie('refreshToken', cookieOpts);
+}
 private getCookie(req: Request, cookieName: string) {
     const cookieHeader = req.headers.cookie;
 
@@ -90,13 +105,19 @@ private getCookie(req: Request, cookieName: string) {
 
     return null;
   }
-  private getClientInfo(req: Request) {
-    return {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || undefined,
-    };
-  }
+private getClientInfo(req: Request) {
+  const forwarded = req.headers['x-forwarded-for'];
+  
+  // X-Forwarded-For can be "client, proxy1, proxy2" — take the first (real client)
+  const ip = typeof forwarded === 'string'
+    ? forwarded.split(',')[0].trim()
+    : (req.ip || 'unknown');
 
+  return {
+    ip,
+    userAgent: req.headers['user-agent'] || undefined,
+  };
+}
   
 
   // github cookie helper 
@@ -123,7 +144,13 @@ private getGithubAuthRequestCookie(req: Request): GithubAuthRequest | null {
 }
 
 private clearGithubAuthRequestCookie(res: Response) {
-  res.clearCookie('github_auth_request', { path: '/' });
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.clearCookie('github_auth_request', {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: isProduction,
+    path: '/',
+  });
 }
 
   
@@ -199,7 +226,7 @@ async githubCallback(
     throw new BadRequestException('GitHub authorization code missing');
   }
 
-  // ← PASS codeVerifier to completeAuthorization
+  // PASS codeVerifier to completeAuthorization
   const profile = await this.githubOAuthService.completeAuthorization(code, authRequest.codeVerifier);
   const session = await this.authService.loginWithGithub(profile, this.getClientInfo(req));
   this.setAuthCookies(res, session.accessToken, session.refreshToken);

@@ -92,62 +92,72 @@ export class GithubOAuthService {
     return data.access_token;
   }
 
-  private async fetchUserProfile(accessToken: string): Promise<GithubProfile> {
-    
-    let emails: Array<{ email: string; primary: boolean; verified: boolean }> = [];
+private async fetchUserProfile(accessToken: string): Promise<GithubProfile> {
+  //  Fetch emails 
+  let emails: Array<{ email: string; primary: boolean; verified: boolean }> = [];
 
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
 
-      const res = await fetch('https://api.github.com/user/emails', {
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'User-Agent': 'secure-login-demo',
-          Accept: 'application/vnd.github.v3+json',
-        },
-      });
-      clearTimeout(timeout);
+    const res = await fetch('https://api.github.com/user/emails', {
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'User-Agent': 'secure-login-demo',
+        Accept: 'application/vnd.github.v3+json',
+      },
+    });
+    clearTimeout(timeout);
 
-      if (!res.ok) throw new Error(`GitHub responded ${res.status}`);
+    if (!res.ok) throw new Error(`GitHub responded ${res.status}`);
 
-      const data = await res.json();
-      if (!Array.isArray(data)) throw new Error('Unexpected response shape');
-
-      emails = data;
-    } catch (err) {
-      console.error('GitHub email verification failed:', err);
-      throw new UnauthorizedException(
-        'Unable to verify your GitHub email. Please try again later.',
-      );
-    }
-
-    const primaryVerifiedEmail =
-      emails.find((e) => e.verified && e.primary) ??
-      emails.find((e) => e.verified);
-
-    // --- Fetch display name ---
-    let name = 'Github User';
-    try {
-      const userRes = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'User-Agent': 'secure-login-demo',
-          Accept: 'application/vnd.github.v3+json',
-        },
-      });
-      if (userRes.ok) {
-        const userData = (await userRes.json()) as { name?: string; login?: string };
-        name = userData.name || userData.login || 'Github User';
-      }
-    } catch {}
-
-    return {
-      providerUserId: primaryVerifiedEmail?.email ?? emails[0]?.email ?? 'unknown',
-      email: primaryVerifiedEmail?.email ?? emails[0]?.email ?? null,
-      emailVerified: Boolean(primaryVerifiedEmail),
-      name,
-    };
+    const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('Unexpected response shape');
+    emails = data;
+  } catch (err) {
+    console.error('GitHub email verification failed:', err);
+    throw new UnauthorizedException(
+      'Unable to verify your GitHub email. Please try again later.',
+    );
   }
+
+  const primaryVerifiedEmail =
+    emails.find((e) => e.verified && e.primary) ??
+    emails.find((e) => e.verified);
+
+  // 2 Fetch user profile (STABLE ID + name)
+  let githubUserId = 'unknown';
+  let name = 'Github User';
+
+  try {
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'User-Agent': 'secure-login-demo',
+        Accept: 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (userRes.ok) {
+      const userData = (await userRes.json()) as {
+        id: number;
+        name?: string;
+        login?: string;
+      };
+      githubUserId = String(userData.id);   // never changes
+      name = userData.name || userData.login || 'Github User';
+    }
+  } catch {
+  
+  }
+
+  // 3 Return with FIXED profile
+  return {
+    providerUserId: githubUserId,         
+    email: primaryVerifiedEmail?.email ?? emails[0]?.email ?? null,
+    emailVerified: Boolean(primaryVerifiedEmail),
+    name,
+  };
+}
 }
