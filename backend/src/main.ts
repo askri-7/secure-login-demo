@@ -4,6 +4,7 @@ import { AppModule } from '@/app.module';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import type { Express } from 'express';
+import { AllExceptionsFilter } from '@/filters/all-exceptions.filter';
 
 dotenv.config();
 
@@ -42,24 +43,26 @@ async function bootstrap() {
     }),
   );
 
-  // ── GRACEFUL SHUTDOWN ──
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+  //  GRACEFUL SHUTDOWN 
   const server = await app.listen(process.env.PORT ?? 3000);
   console.log(`Application is running on: ${await app.getUrl()}`);
 
   const gracefulShutdown = (signal: string) => {
     console.log(`Received ${signal}, starting graceful shutdown...`);
     
-    // 1. Stop accepting new connections
+    // 1 Stop accepting new connections
     server.close(async () => {
       console.log('HTTP server closed. Draining remaining requests...');
       
-      // 2. Give in-flight requests 10 seconds to finish
+      // 2 Give in-flight requests 10 seconds to finish
       const shutdownTimeout = setTimeout(() => {
         console.error('Forced shutdown: some requests did not complete in time');
         process.exit(1);
       }, 10000);
 
-      // 3. Close NestJS app (disconnects Prisma, stops cron jobs, etc.)
+      // 3 Close NestJS app (disconnects Prisma, stops cron jobs, etc.)
       try {
         await app.close();
         clearTimeout(shutdownTimeout);
