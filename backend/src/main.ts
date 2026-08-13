@@ -29,11 +29,17 @@ async function bootstrap() {
     },
     crossOriginEmbedderPolicy: false,
   }));
+// ── CORS ──
+const frontendUrl = process.env.FRONTEND_URL;
 
-  app.enableCors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
-    credentials: true,
-  });
+if (!frontendUrl) {
+  throw new Error('FRONTEND_URL environment variable is required');
+}
+
+app.enableCors({
+  origin: frontendUrl,
+  credentials: true,
+});
 
   app.useGlobalPipes(
     new ValidationPipe({

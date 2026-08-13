@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from '@/database/prisma.module';
@@ -9,7 +9,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { HealthController } from './health/health.controller';
 import { HealthModule } from './health/health.module';
-
+import { CorrelationIdMiddleware } from '@/middleware/correlation-id.middleware';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -34,4 +34,11 @@ import { HealthModule } from './health/health.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule {
+
+    configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(CorrelationIdMiddleware)
+      .forRoutes('*'); // Apply to all routes
+  }
+}

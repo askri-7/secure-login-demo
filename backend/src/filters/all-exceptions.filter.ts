@@ -53,14 +53,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         : exception.message;
     }
 
+    // ── Correlation ID ──
+    const correlationId = (request as any).correlationId || 'unknown';
+
     const errorResponse = {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
+      correlationId,
       message,
     };
 
-    console.error(`[${request.method}] ${request.url} → ${status}`, exception);
+    console.error(`[${correlationId}] [${request.method}] ${request.url} → ${status}`, exception);
 
     response.status(status).json(errorResponse);
   }

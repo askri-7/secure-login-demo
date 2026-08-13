@@ -1,4 +1,3 @@
-// Base URL of your NestJS backend.
 export const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 type User = { id: number; email: string; name: string; role: string };
@@ -9,13 +8,34 @@ type ApiError = {
   statusCode: number;
 };
 
-// ─────────────────────────────────────────────────────────────
-// TOKEN REFRESH STATE (prevents race conditions)
-// ─────────────────────────────────────────────────────────────
+// ── TIMEOUT WRAPPER ──
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = 10000
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
 
-let isRefreshing = false;// ← global flag, shared by ALL requests
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return res;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+// ── TOKEN REFRESH STATE ──
+let isRefreshing = false;
 let refreshPromise: Promise<void> | null = null;
-
 let refreshSubscribers: Array<(success: boolean) => void> = [];
 
 function notifySubscribers(success: boolean) {
@@ -27,28 +47,13 @@ function addRefreshSubscriber(cb: (success: boolean) => void) {
   refreshSubscribers.push(cb);
 }
 
-// ─────────────────────────────────────────────────────────────
-// CORE FETCH WRAPPER WITH AUTO-REFRESH
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Wrapper around fetch that:
- * 1. Sends credentials (httpOnly cookies) automatically
- * 2. On 401 → calls /auth/refresh to get a new accessToken
- * 3. Retries the original request once after refresh
- * 4. If refresh also fails → returns the 401 response (NO redirect)
- *
- * Race-condition safe: if 5 requests hit 401 at the same time,
- * only ONE /auth/refresh call is made. The other 4 wait and
- * then retry with the new cookie.
- */
+// ── CORE FETCH WRAPPER ──
 async function fetchWithAuth(
   url: string,
   options: RequestInit = {},
-  isRetry = false  // isRetry = "I already refreshed once, don't loop"
+  isRetry = false
 ): Promise<Response> {
-  // fetch /auth/refresh
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     ...options,
     credentials: "include",
     headers: {
@@ -57,121 +62,98 @@ async function fetchWithAuth(
     },
   });
 
-  // If not 401, or this is already a retry → just return it
   if (res.status !== 401 || isRetry) {
     return res;
   }
 
-  //401 detected 
-
-  // If another request is already refreshing → wait for it
   if (isRefreshing && refreshPromise) {
     return new Promise((resolve) => {
       addRefreshSubscriber((success) => {
         if (success) {
           resolve(fetchWithAuth(url, options, true));
         } else {
-          resolve(res); // return original 401
+          resolve(res);
         }
       });
     });
   }
 
-  // ── We are the first 401 → start the refresh ──
-  isRefreshing = true;  
+  isRefreshing = true;
 
   refreshPromise = (async () => {
     try {
-      const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+      const refreshRes = await fetchWithTimeout(`${API_URL}/auth/refresh`, {
         method: "POST",
         credentials: "include",
       });
 
-      if (!refreshRes.ok) {
-        throw new Error("Refresh failed");
-      }
+      if (!refreshRes.ok) throw new Error("Refresh failed");
 
-      // FIX: set isRefreshing = false BEFORE notifying subscribers
-      // so new requests don't get stuck waiting on a resolved promise
       isRefreshing = false;
       notifySubscribers(true);
     } catch {
-      isRefreshing = false; // ← FIX: moved BEFORE notify
+      isRefreshing = false;
       notifySubscribers(false);
-      // FIX: removed window.location.href = "/login"
-      // Let the caller (React component) decide what to do
     } finally {
       refreshPromise = null;
     }
   })();
 
   await refreshPromise;
-
-  // After refresh completes, retry the original request
   return fetchWithAuth(url, options, true);
 }
 
-// ─────────────────────────────────────────────────────────────
-// RESPONSE HELPER
-// ─────────────────────────────────────────────────────────────
-
+// ── RESPONSE HELPER (safe JSON parsing) ──
 async function handleResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
+  const contentType = res.headers.get("content-type") || "";
+
+  // If response is not JSON (e.g., Nginx 502 HTML), handle gracefully
+  if (!contentType.includes("application/json")) {
+    const text = await res.text();
+    console.error("Non-JSON response:", text.slice(0, 200));
+    throw new Error(fallbackMessage);
+  }
+
   const data = await res.json();
 
   if (!res.ok) {
     const err = data as ApiError;
-    const message = Array.isArray(err.message) ? err.message.join(", ") : err.message;
+    const message = Array.isArray(err.message)
+      ? err.message.join(", ")
+      : err.message;
     throw new Error(message || fallbackMessage);
   }
 
   return data as T;
 }
 
-// ─────────────────────────────────────────────────────────────
-// AUTH API
-// ─────────────────────────────────────────────────────────────
-
+// ── AUTH API ──
 export async function login(email: string, password: string): Promise<{ user: User }> {
-  const res = await fetch(`${API_URL}/auth/login`, {
+  const res = await fetchWithAuth(`${API_URL}/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
   return handleResponse(res, "Login failed");
 }
 
 export async function signup(name: string, email: string, password: string): Promise<{ user: User }> {
-  const res = await fetch(`${API_URL}/auth/signup`, {
+  const res = await fetchWithAuth(`${API_URL}/auth/signup`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify({ name, email, password }),
   });
   return handleResponse(res, "Signup failed");
 }
 
-/**
- * Explicit logout:
- * Calls backend to revoke the refresh token, then clears cookies,
- * then redirects to /login.
- */
 export async function logout(): Promise<void> {
   try {
-    await fetch(`${API_URL}/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
+    await fetchWithAuth(`${API_URL}/auth/logout`, { method: "POST" });
   } catch {
-    // ignore — cookies will expire naturally
+    // ignore
   }
   window.location.href = "/";
 }
 
-// ─────────────────────────────────────────────────────────────
-// PROTECTED API (uses the auto-refresh wrapper)
-// ─────────────────────────────────────────────────────────────
-
+// ── PROTECTED API ──
 export async function fetchMe(): Promise<User> {
   const res = await fetchWithAuth(`${API_URL}/users/me`);
   return handleResponse(res, "Session expired, please log in again");
