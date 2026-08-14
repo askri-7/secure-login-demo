@@ -20,12 +20,12 @@ export class AuthController {
   ) {}
    // google cookie helper
   private setGoogleAuthRequestCookie(res: Response, request: GoogleAuthRequest){
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
 
     res.cookie('googleAuthRequest', JSON.stringify(request), {
       httpOnly: true,
       sameSite: 'lax',
-      secure: isProduction,
+      secure: isSecureConnection,
       path: '/',
       maxAge: 5 * 60 * 1000,
 
@@ -44,11 +44,12 @@ export class AuthController {
     }
    
 private clearGoogleAuthRequestCookie(res: Response) {
-  const isProduction = process.env.NODE_ENV === 'production';
+  
+  const isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
   res.clearCookie('googleAuthRequest', {
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: isProduction,
+    secure: isSecureConnection,
     path: '/',
   });
 }
@@ -57,12 +58,12 @@ private clearGoogleAuthRequestCookie(res: Response) {
    // set normal auth cookie helper 
  // take an http respose object and two token and tell the browser to store them as cookie
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
 
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: isProduction,
+      secure: isSecureConnection,
       path: '/',  //send on every url 
       maxAge: 15 * 60 * 1000,
     });
@@ -70,18 +71,18 @@ private clearGoogleAuthRequestCookie(res: Response) {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: isProduction,
+      secure: isSecureConnection,
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   } 
 private clearAuthCookies(res: Response) {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
+  const isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
+
   const cookieOpts = {
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: isProduction,
+    secure:  isSecureConnection,
     path: '/',
   };
 
@@ -123,11 +124,11 @@ private getClientInfo(req: Request) {
   // github cookie helper 
 
   private setGithubAuthRequestCookie(res: Response, request: GithubAuthRequest) {
-  const isProduction = process.env.NODE_ENV === 'production';
+   const isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
   res.cookie('github_auth_request', JSON.stringify(request), {
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProduction,
+    secure: isSecureConnection ,
     path: '/',
     maxAge: 5 * 60 * 1000,
   });
@@ -144,11 +145,11 @@ private getGithubAuthRequestCookie(req: Request): GithubAuthRequest | null {
 }
 
 private clearGithubAuthRequestCookie(res: Response) {
-  const isProduction = process.env.NODE_ENV === 'production';
+ const isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
   res.clearCookie('github_auth_request', {
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: isProduction,
+    secure: isSecureConnection,
     path: '/',
   });
 }
