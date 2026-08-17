@@ -1,5 +1,5 @@
 ##
-ARG NODE_VERSION=22-alpine
+ARG NODE_VERSION=24-alpine
 
 # ---------------------------------------------------------------------------
 # 1) deps: install ALL deps (incl. dev, needed to compile TS) — cached layer.
