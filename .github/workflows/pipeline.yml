@@ -98,13 +98,12 @@ jobs:
       # ----------------------------------------------------------
       # Backend
       # ----------------------------------------------------------
-
-      - name: Build backend
+      - name: Build and push backend
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          load: true
+          push: true
           tags: |
             ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
             ${{ env.BACKEND_IMAGE }}:latest
@@ -112,7 +111,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
           provenance: true
           sbom: true
-
       # ----------------------------------------------------------
       # Frontend
       # ----------------------------------------------------------
