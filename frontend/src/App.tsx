@@ -48,7 +48,7 @@ function RootPage() {
 }
 
 /**
- * ProtectedProfile ("/profile"):
+ *
  * If not authenticated → redirects to "/login"
  * If authenticated → renders ProfilePage
  */
