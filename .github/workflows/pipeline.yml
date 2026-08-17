@@ -103,7 +103,7 @@ jobs:
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          push: true
+          load: true
           tags: |
             ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
             ${{ env.BACKEND_IMAGE }}:latest
