@@ -1,38 +1,31 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: secure_login_demo
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    # Once the CI/CD pipeline exists this becomes: docker compose pull && up -d
+    # (no local build needed on the VM at all). Update the tag to match what
+    # the pipeline pushes.
+    image: ghcr.io/askri-7/secure-login-demo-backend:latest
     restart: unless-stopped
     env_file:
       - ./backend/.env
-    depends_on:
-      postgres:
-        condition: service_healthy
+
+    
+    # The VM's own Postgres listens on the host, not inside this container's
+    # network — host-gateway makes host.docker.internal resolve to the VM's
+    # host IP from inside the container (Docker Engine 20.10+ on Linux).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     ports:
-      - "3000:3000" # optional: direct access for debugging; the app is reached via the frontend's nginx proxy on 8080
+       - "3000:3000"  
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: ghcr.io/askri-7/secure-login-demo-frontend:latest
     restart: unless-stopped
     environment:
       BACKEND_HOST: backend
@@ -40,7 +33,4 @@ services:
     depends_on:
       - backend
     ports:
-      - "8080:80"
-
-volumes:
-  postgres_data:
+      - "80:80"

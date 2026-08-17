@@ -1,5 +1,4 @@
-# syntax=docker/dockerfile:1.7
-
+##
 ARG NODE_VERSION=22-alpine
 
 # ---------------------------------------------------------------------------
@@ -24,7 +23,7 @@ COPY . .
 
 # Regenerate the Prisma client from prisma/schema.prisma so it always matches
 # the current schema, even though the generated output is checked into git.
-RUN npx prisma generate
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate
 
 RUN npm run build
 

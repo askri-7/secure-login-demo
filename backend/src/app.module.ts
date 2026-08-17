@@ -10,8 +10,10 @@ import { APP_GUARD } from '@nestjs/core';
 import { HealthController } from './health/health.controller';
 import { HealthModule } from './health/health.module';
 import { CorrelationIdMiddleware } from '@/middleware/correlation-id.middleware';
+
 @Module({
   imports: [
+
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
