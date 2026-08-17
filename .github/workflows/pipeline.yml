@@ -43,6 +43,7 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package-lock.json
+          fetch-depth: 0
 
       - name: Install backend dependencies
         working-directory: backend
