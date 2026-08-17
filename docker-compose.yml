@@ -1,36 +1,27 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    # Once the CI/CD pipeline exists this becomes: docker compose pull && up -d
-    # (no local build needed on the VM at all). Update the tag to match what
-    # the pipeline pushes.
-    image: ghcr.io/askri-7/secure-login-demo-backend:latest
+    image: ${DOCKERHUB_USERNAME}/secure-login-demo-backend:${IMAGE_TAG}
     restart: unless-stopped
+
     env_file:
       - ./backend/.env
 
-    
-    # The VM's own Postgres listens on the host, not inside this container's
-    # network — host-gateway makes host.docker.internal resolve to the VM's
-    # host IP from inside the container (Docker Engine 20.10+ on Linux).
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
     ports:
-       - "3000:3000"  
+      - "3000:3000"
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    image: ghcr.io/askri-7/secure-login-demo-frontend:latest
+    image: ${DOCKERHUB_USERNAME}/secure-login-demo-frontend:${IMAGE_TAG}
     restart: unless-stopped
+
     environment:
       BACKEND_HOST: backend
       BACKEND_PORT: "3000"
+
     depends_on:
       - backend
+
     ports:
       - "80:80"

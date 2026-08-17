@@ -1,1 +1,231 @@
 ###ci/cd####
+
+name: CI/CD
+
+on:
+
+
+  push:
+    branches:
+      - main
+      - behind
+  workflow_dispatch:    
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_OWNER: ${{ secrets.DOCKERHUB_USERNAME }}
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/secure-login-demo-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/secure-login-demo-frontend
+
+jobs:
+
+  # ============================================================
+  # 1. CODE QUALITY + SECURITY
+  # ============================================================
+
+  code-security:
+    name: Code Security
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Backend tests
+        working-directory: backend
+        run: npm test -- --runInBand
+
+      - name: Backend build
+        working-directory: backend
+        run: npm run build
+
+      - name: npm audit
+        working-directory: backend
+        run: npm audit --audit-level=high
+
+      # Secret scanning
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================
+  # 2. BUILD CONTAINERS
+  # ============================================================
+
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: code-security
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ----------------------------------------------------------
+      # Backend
+      # ----------------------------------------------------------
+
+      - name: Build backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          load: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          provenance: true
+          sbom: true
+
+      # ----------------------------------------------------------
+      # Frontend
+      # ----------------------------------------------------------
+
+      - name: Build frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          load: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          provenance: true
+          sbom: true
+
+      # ----------------------------------------------------------
+      # Docker Scout
+      # ----------------------------------------------------------
+
+      - name: Scan backend with Docker Scout
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          only-severities: critical,high
+          exit-code: true
+
+      - name: Scan frontend with Docker Scout
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          only-severities: critical,high
+          exit-code: true
+
+      # ----------------------------------------------------------
+      # Push only after security checks pass
+      # ----------------------------------------------------------
+
+      - name: Push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          provenance: true
+          sbom: true
+
+      - name: Push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          provenance: true
+          sbom: true
+
+  # ============================================================
+  # 3. DEPLOY
+  # ============================================================
+
+  deploy:
+    name: Deploy to VM
+    runs-on: ubuntu-latest
+
+    needs: build
+
+    # Only deploy actual pushes, never pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+
+          envs: DOCKERHUB_USERNAME,IMAGE_TAG
+
+          script: |
+            set -e
+
+            cd ~/secure-login-demo
+
+            echo "[+] Pulling images..."
+
+            export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
+            export IMAGE_TAG="${IMAGE_TAG}"
+
+            docker compose pull
+
+            echo "[+] Starting application..."
+
+            docker compose up -d --remove-orphans
+
+            echo "[+] Waiting for containers..."
+
+            sleep 10
+
+            docker compose ps
+
+            echo "[+] Deployment complete."
