@@ -220,13 +220,29 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.refreshToken.update({
-        where: { id: matchedToken.id },
-        data: { revoked: true, revokedAt: new Date() },
-      });
 
-      const { accessToken, refreshToken } = await this.issueTokenPair(tx, user);
+    return this.prisma.$transaction(async (tx) => {
+    // 1 Only succeed if token is STILL active
+    const revokeResult = await tx.refreshToken.updateMany({
+      where: {
+        id: matchedToken.id,
+        revoked: false, 
+      },
+      data: {
+        revoked: true,
+        revokedAt: new Date(),
+      },
+    });
+
+    // 2  If no rows were updated, someone else won
+    if (revokeResult.count === 0) {
+      throw new UnauthorizedException(
+        'Refresh token already used. Please log in again.',
+      );
+    }
+
+  
+    const { accessToken, refreshToken } = await this.issueTokenPair(tx, user);
 
       await this.audit.log({
         event: 'TOKEN_REFRESH',
@@ -237,6 +253,9 @@ export class AuthService {
 
       return { accessToken, refreshToken, user: this.toUserResponse(user) };
     });
+
+   
+    
   }
 
   async logout(

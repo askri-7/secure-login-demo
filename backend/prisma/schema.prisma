@@ -19,7 +19,9 @@ enum UserRole {
 }
 
 model User {
-  id            Int       @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())et Up Your Project and Manifest File
+
+
   email         String    @unique
   name          String
   password      String?   // now optional  null for OAuth-only users
