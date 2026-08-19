@@ -36,8 +36,9 @@ export type EmailVerificationTokenSumAggregateOutputType = {
 
 export type EmailVerificationTokenMinAggregateOutputType = {
   id: string | null
+  tokenId: string | null
+  hashedSecret: string | null
   email: string | null
-  tokenHash: string | null
   expiresAt: Date | null
   used: boolean | null
   createdAt: Date | null
@@ -46,8 +47,9 @@ export type EmailVerificationTokenMinAggregateOutputType = {
 
 export type EmailVerificationTokenMaxAggregateOutputType = {
   id: string | null
+  tokenId: string | null
+  hashedSecret: string | null
   email: string | null
-  tokenHash: string | null
   expiresAt: Date | null
   used: boolean | null
   createdAt: Date | null
@@ -56,8 +58,9 @@ export type EmailVerificationTokenMaxAggregateOutputType = {
 
 export type EmailVerificationTokenCountAggregateOutputType = {
   id: number
+  tokenId: number
+  hashedSecret: number
   email: number
-  tokenHash: number
   expiresAt: number
   used: number
   createdAt: number
@@ -76,8 +79,9 @@ export type EmailVerificationTokenSumAggregateInputType = {
 
 export type EmailVerificationTokenMinAggregateInputType = {
   id?: true
+  tokenId?: true
+  hashedSecret?: true
   email?: true
-  tokenHash?: true
   expiresAt?: true
   used?: true
   createdAt?: true
@@ -86,8 +90,9 @@ export type EmailVerificationTokenMinAggregateInputType = {
 
 export type EmailVerificationTokenMaxAggregateInputType = {
   id?: true
+  tokenId?: true
+  hashedSecret?: true
   email?: true
-  tokenHash?: true
   expiresAt?: true
   used?: true
   createdAt?: true
@@ -96,8 +101,9 @@ export type EmailVerificationTokenMaxAggregateInputType = {
 
 export type EmailVerificationTokenCountAggregateInputType = {
   id?: true
+  tokenId?: true
+  hashedSecret?: true
   email?: true
-  tokenHash?: true
   expiresAt?: true
   used?: true
   createdAt?: true
@@ -193,8 +199,9 @@ export type EmailVerificationTokenGroupByArgs<ExtArgs extends runtime.Types.Exte
 
 export type EmailVerificationTokenGroupByOutputType = {
   id: string
+  tokenId: string
+  hashedSecret: string
   email: string
-  tokenHash: string
   expiresAt: Date
   used: boolean
   createdAt: Date
@@ -226,8 +233,9 @@ export type EmailVerificationTokenWhereInput = {
   OR?: Prisma.EmailVerificationTokenWhereInput[]
   NOT?: Prisma.EmailVerificationTokenWhereInput | Prisma.EmailVerificationTokenWhereInput[]
   id?: Prisma.StringFilter<"EmailVerificationToken"> | string
+  tokenId?: Prisma.StringFilter<"EmailVerificationToken"> | string
+  hashedSecret?: Prisma.StringFilter<"EmailVerificationToken"> | string
   email?: Prisma.StringFilter<"EmailVerificationToken"> | string
-  tokenHash?: Prisma.StringFilter<"EmailVerificationToken"> | string
   expiresAt?: Prisma.DateTimeFilter<"EmailVerificationToken"> | Date | string
   used?: Prisma.BoolFilter<"EmailVerificationToken"> | boolean
   createdAt?: Prisma.DateTimeFilter<"EmailVerificationToken"> | Date | string
@@ -237,8 +245,9 @@ export type EmailVerificationTokenWhereInput = {
 
 export type EmailVerificationTokenOrderByWithRelationInput = {
   id?: Prisma.SortOrder
+  tokenId?: Prisma.SortOrder
+  hashedSecret?: Prisma.SortOrder
   email?: Prisma.SortOrder
-  tokenHash?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
   used?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -248,22 +257,24 @@ export type EmailVerificationTokenOrderByWithRelationInput = {
 
 export type EmailVerificationTokenWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  tokenId?: string
   AND?: Prisma.EmailVerificationTokenWhereInput | Prisma.EmailVerificationTokenWhereInput[]
   OR?: Prisma.EmailVerificationTokenWhereInput[]
   NOT?: Prisma.EmailVerificationTokenWhereInput | Prisma.EmailVerificationTokenWhereInput[]
+  hashedSecret?: Prisma.StringFilter<"EmailVerificationToken"> | string
   email?: Prisma.StringFilter<"EmailVerificationToken"> | string
-  tokenHash?: Prisma.StringFilter<"EmailVerificationToken"> | string
   expiresAt?: Prisma.DateTimeFilter<"EmailVerificationToken"> | Date | string
   used?: Prisma.BoolFilter<"EmailVerificationToken"> | boolean
   createdAt?: Prisma.DateTimeFilter<"EmailVerificationToken"> | Date | string
   userId?: Prisma.IntFilter<"EmailVerificationToken"> | number
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
-}, "id">
+}, "id" | "tokenId">
 
 export type EmailVerificationTokenOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
+  tokenId?: Prisma.SortOrder
+  hashedSecret?: Prisma.SortOrder
   email?: Prisma.SortOrder
-  tokenHash?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
   used?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -280,8 +291,9 @@ export type EmailVerificationTokenScalarWhereWithAggregatesInput = {
   OR?: Prisma.EmailVerificationTokenScalarWhereWithAggregatesInput[]
   NOT?: Prisma.EmailVerificationTokenScalarWhereWithAggregatesInput | Prisma.EmailVerificationTokenScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"EmailVerificationToken"> | string
+  tokenId?: Prisma.StringWithAggregatesFilter<"EmailVerificationToken"> | string
+  hashedSecret?: Prisma.StringWithAggregatesFilter<"EmailVerificationToken"> | string
   email?: Prisma.StringWithAggregatesFilter<"EmailVerificationToken"> | string
-  tokenHash?: Prisma.StringWithAggregatesFilter<"EmailVerificationToken"> | string
   expiresAt?: Prisma.DateTimeWithAggregatesFilter<"EmailVerificationToken"> | Date | string
   used?: Prisma.BoolWithAggregatesFilter<"EmailVerificationToken"> | boolean
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"EmailVerificationToken"> | Date | string
@@ -290,8 +302,9 @@ export type EmailVerificationTokenScalarWhereWithAggregatesInput = {
 
 export type EmailVerificationTokenCreateInput = {
   id?: string
+  tokenId: string
+  hashedSecret: string
   email: string
-  tokenHash: string
   expiresAt: Date | string
   used?: boolean
   createdAt?: Date | string
@@ -300,8 +313,9 @@ export type EmailVerificationTokenCreateInput = {
 
 export type EmailVerificationTokenUncheckedCreateInput = {
   id?: string
+  tokenId: string
+  hashedSecret: string
   email: string
-  tokenHash: string
   expiresAt: Date | string
   used?: boolean
   createdAt?: Date | string
@@ -310,8 +324,9 @@ export type EmailVerificationTokenUncheckedCreateInput = {
 
 export type EmailVerificationTokenUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  tokenId?: Prisma.StringFieldUpdateOperationsInput | string
+  hashedSecret?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  tokenHash?: Prisma.StringFieldUpdateOperationsInput | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -320,8 +335,9 @@ export type EmailVerificationTokenUpdateInput = {
 
 export type EmailVerificationTokenUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  tokenId?: Prisma.StringFieldUpdateOperationsInput | string
+  hashedSecret?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  tokenHash?: Prisma.StringFieldUpdateOperationsInput | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -330,8 +346,9 @@ export type EmailVerificationTokenUncheckedUpdateInput = {
 
 export type EmailVerificationTokenCreateManyInput = {
   id?: string
+  tokenId: string
+  hashedSecret: string
   email: string
-  tokenHash: string
   expiresAt: Date | string
   used?: boolean
   createdAt?: Date | string
@@ -340,8 +357,9 @@ export type EmailVerificationTokenCreateManyInput = {
 
 export type EmailVerificationTokenUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  tokenId?: Prisma.StringFieldUpdateOperationsInput | string
+  hashedSecret?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  tokenHash?: Prisma.StringFieldUpdateOperationsInput | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -349,8 +367,9 @@ export type EmailVerificationTokenUpdateManyMutationInput = {
 
 export type EmailVerificationTokenUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  tokenId?: Prisma.StringFieldUpdateOperationsInput | string
+  hashedSecret?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  tokenHash?: Prisma.StringFieldUpdateOperationsInput | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -369,8 +388,9 @@ export type EmailVerificationTokenOrderByRelationAggregateInput = {
 
 export type EmailVerificationTokenCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
+  tokenId?: Prisma.SortOrder
+  hashedSecret?: Prisma.SortOrder
   email?: Prisma.SortOrder
-  tokenHash?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
   used?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -383,8 +403,9 @@ export type EmailVerificationTokenAvgOrderByAggregateInput = {
 
 export type EmailVerificationTokenMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
+  tokenId?: Prisma.SortOrder
+  hashedSecret?: Prisma.SortOrder
   email?: Prisma.SortOrder
-  tokenHash?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
   used?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -393,8 +414,9 @@ export type EmailVerificationTokenMaxOrderByAggregateInput = {
 
 export type EmailVerificationTokenMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
+  tokenId?: Prisma.SortOrder
+  hashedSecret?: Prisma.SortOrder
   email?: Prisma.SortOrder
-  tokenHash?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
   used?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -449,8 +471,9 @@ export type EmailVerificationTokenUncheckedUpdateManyWithoutUserNestedInput = {
 
 export type EmailVerificationTokenCreateWithoutUserInput = {
   id?: string
+  tokenId: string
+  hashedSecret: string
   email: string
-  tokenHash: string
   expiresAt: Date | string
   used?: boolean
   createdAt?: Date | string
@@ -458,8 +481,9 @@ export type EmailVerificationTokenCreateWithoutUserInput = {
 
 export type EmailVerificationTokenUncheckedCreateWithoutUserInput = {
   id?: string
+  tokenId: string
+  hashedSecret: string
   email: string
-  tokenHash: string
   expiresAt: Date | string
   used?: boolean
   createdAt?: Date | string
@@ -496,8 +520,9 @@ export type EmailVerificationTokenScalarWhereInput = {
   OR?: Prisma.EmailVerificationTokenScalarWhereInput[]
   NOT?: Prisma.EmailVerificationTokenScalarWhereInput | Prisma.EmailVerificationTokenScalarWhereInput[]
   id?: Prisma.StringFilter<"EmailVerificationToken"> | string
+  tokenId?: Prisma.StringFilter<"EmailVerificationToken"> | string
+  hashedSecret?: Prisma.StringFilter<"EmailVerificationToken"> | string
   email?: Prisma.StringFilter<"EmailVerificationToken"> | string
-  tokenHash?: Prisma.StringFilter<"EmailVerificationToken"> | string
   expiresAt?: Prisma.DateTimeFilter<"EmailVerificationToken"> | Date | string
   used?: Prisma.BoolFilter<"EmailVerificationToken"> | boolean
   createdAt?: Prisma.DateTimeFilter<"EmailVerificationToken"> | Date | string
@@ -506,8 +531,9 @@ export type EmailVerificationTokenScalarWhereInput = {
 
 export type EmailVerificationTokenCreateManyUserInput = {
   id?: string
+  tokenId: string
+  hashedSecret: string
   email: string
-  tokenHash: string
   expiresAt: Date | string
   used?: boolean
   createdAt?: Date | string
@@ -515,8 +541,9 @@ export type EmailVerificationTokenCreateManyUserInput = {
 
 export type EmailVerificationTokenUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  tokenId?: Prisma.StringFieldUpdateOperationsInput | string
+  hashedSecret?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  tokenHash?: Prisma.StringFieldUpdateOperationsInput | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -524,8 +551,9 @@ export type EmailVerificationTokenUpdateWithoutUserInput = {
 
 export type EmailVerificationTokenUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  tokenId?: Prisma.StringFieldUpdateOperationsInput | string
+  hashedSecret?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  tokenHash?: Prisma.StringFieldUpdateOperationsInput | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -533,8 +561,9 @@ export type EmailVerificationTokenUncheckedUpdateWithoutUserInput = {
 
 export type EmailVerificationTokenUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  tokenId?: Prisma.StringFieldUpdateOperationsInput | string
+  hashedSecret?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  tokenHash?: Prisma.StringFieldUpdateOperationsInput | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   used?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -544,8 +573,9 @@ export type EmailVerificationTokenUncheckedUpdateManyWithoutUserInput = {
 
 export type EmailVerificationTokenSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
+  tokenId?: boolean
+  hashedSecret?: boolean
   email?: boolean
-  tokenHash?: boolean
   expiresAt?: boolean
   used?: boolean
   createdAt?: boolean
@@ -555,8 +585,9 @@ export type EmailVerificationTokenSelect<ExtArgs extends runtime.Types.Extension
 
 export type EmailVerificationTokenSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
+  tokenId?: boolean
+  hashedSecret?: boolean
   email?: boolean
-  tokenHash?: boolean
   expiresAt?: boolean
   used?: boolean
   createdAt?: boolean
@@ -566,8 +597,9 @@ export type EmailVerificationTokenSelectCreateManyAndReturn<ExtArgs extends runt
 
 export type EmailVerificationTokenSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
+  tokenId?: boolean
+  hashedSecret?: boolean
   email?: boolean
-  tokenHash?: boolean
   expiresAt?: boolean
   used?: boolean
   createdAt?: boolean
@@ -577,15 +609,16 @@ export type EmailVerificationTokenSelectUpdateManyAndReturn<ExtArgs extends runt
 
 export type EmailVerificationTokenSelectScalar = {
   id?: boolean
+  tokenId?: boolean
+  hashedSecret?: boolean
   email?: boolean
-  tokenHash?: boolean
   expiresAt?: boolean
   used?: boolean
   createdAt?: boolean
   userId?: boolean
 }
 
-export type EmailVerificationTokenOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "tokenHash" | "expiresAt" | "used" | "createdAt" | "userId", ExtArgs["result"]["emailVerificationToken"]>
+export type EmailVerificationTokenOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tokenId" | "hashedSecret" | "email" | "expiresAt" | "used" | "createdAt" | "userId", ExtArgs["result"]["emailVerificationToken"]>
 export type EmailVerificationTokenInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -603,8 +636,9 @@ export type $EmailVerificationTokenPayload<ExtArgs extends runtime.Types.Extensi
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
+    tokenId: string
+    hashedSecret: string
     email: string
-    tokenHash: string
     expiresAt: Date
     used: boolean
     createdAt: Date
@@ -1034,8 +1068,9 @@ export interface Prisma__EmailVerificationTokenClient<T, Null = never, ExtArgs e
  */
 export interface EmailVerificationTokenFieldRefs {
   readonly id: Prisma.FieldRef<"EmailVerificationToken", 'String'>
+  readonly tokenId: Prisma.FieldRef<"EmailVerificationToken", 'String'>
+  readonly hashedSecret: Prisma.FieldRef<"EmailVerificationToken", 'String'>
   readonly email: Prisma.FieldRef<"EmailVerificationToken", 'String'>
-  readonly tokenHash: Prisma.FieldRef<"EmailVerificationToken", 'String'>
   readonly expiresAt: Prisma.FieldRef<"EmailVerificationToken", 'DateTime'>
   readonly used: Prisma.FieldRef<"EmailVerificationToken", 'Boolean'>
   readonly createdAt: Prisma.FieldRef<"EmailVerificationToken", 'DateTime'>

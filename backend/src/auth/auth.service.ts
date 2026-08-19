@@ -10,6 +10,7 @@ import { RefreshDto } from './dto/refresh.dto';
 import { GithubProfile } from './github-oauth.service';
 import { GoogleProfile } from './google-oidc.service';
 import { AuditLogService } from './audit-log.service';
+import { EmailService } from './email.service';
 
 type AuthUser = Pick<User, 'id' | 'email' | 'name' | 'role'>;
 
@@ -30,6 +31,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private audit: AuditLogService,
+    private emailService: EmailService,
   ) {}
 
   private toUserResponse(user: AuthUser) {
@@ -121,12 +123,16 @@ export class AuthService {
     });
     return { deleted: result.count };
   }
-
   async signUp(
     signUpDto: SignUpDto,
     ctx: { ip: string; userAgent?: string },
-  ): Promise<AuthResponse> {
-    const { name, email, password } = signUpDto;
+  ): Promise<{ message: string }> { // Changed: no longer auto-logs in
+    const { name, email, password, confirmPassword } = signUpDto;
+
+    // 1. Validate password match 
+    if (password !== confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
 
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -140,11 +146,25 @@ export class AuthService {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
+    
+    //  2. Create user with emailVerified: false 
     const user = await this.prisma.user.create({
-      data: { name, email, password: hashedPassword, role: 'USER' },
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: 'USER',
+        emailVerified: false,
+      },
     });
 
-    const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+    // 3. Generate verification token 
+    const verificationToken = await this.createEmailVerificationToken(user.id, email);
+
+    // 4. Send email 
+    const baseUrl = process.env.FRONTEND_URL ;
+    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+    await this.emailService.sendVerificationEmail(email, name, verificationUrl);
 
     await this.audit.log({
       event: 'SIGNUP',
@@ -154,8 +174,13 @@ export class AuthService {
       metadata: { email: user.email },
     });
 
-    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+    //  5. Return message (must verify email first) ──
+    return {
+      message: 'Account created. Please check your email to verify your account.',
+    };
   }
+
+
   async login(
   loginDto: LoginDto,
   ctx: { ip: string; userAgent?: string },
@@ -164,7 +189,7 @@ export class AuthService {
 
   const user = await this.prisma.user.findUnique({ where: { email } });
 
-  // ── LOCKOUT CHECK ──
+ 
   if (user?.lockedUntil && user.lockedUntil > new Date()) {
     const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
     await this.audit.log({
@@ -199,7 +224,7 @@ export class AuthService {
     throw new UnauthorizedException('Invalid email or password');
   }
 
-  // ── SUCCESS: RESET LOCKOUT ──
+
   await this.prisma.user.update({
     where: { id: user.id },
     data: {
@@ -465,4 +490,58 @@ export class AuthService {
       await new Promise ((resolve) => setTimeout(resolve, delayMs));
     }
   }
+
+
+  // email verification 
+  private async createEmailVerificationToken(userId: number, email: string){
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenId = rawToken.slice(0,16);
+    const tokenSecret = rawToken.slice(16);
+    const hashedSecret = await bcrypt.hash(tokenSecret,12);
+
+    await this.prisma.emailVerificationToken.create({
+      data: {
+        tokenId,
+        hashedSecret,
+        email,
+        userId,
+        expiresAt: new Date(Date.now()+ 24*60*60*100),
+      },
+    });
+    return rawToken;
+  }
+
+  async verifyEmail(token: string) {
+    const tokenId = token.slice(0, 16);
+    const tokenSecret = token.slice(16);
+    const record = await this.prisma.emailVerificationToken.findUnique({
+      where: { tokenId},
+    });
+
+    if( !record || record.used || record.expiresAt <= new Date()){
+       throw new UnauthorizedException('Invalid or expired verification link');
+
+    }
+
+    const valid = await bcrypt.compare(tokenSecret, record.hashedSecret);
+    if (!valid) {
+      throw new UnauthorizedException('Invalid or expired verification link');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.emailVerificationToken.update({
+        where: { id: record.id },
+        data: { used: true },
+      });
+
+      await tx.user.update({
+        where: { id: record.userId },
+        data: { emailVerified: true },
+      });
+    });
+
+    return { message: 'Email verified successfully. You can now log in.' };
+  }
+
+  
 }

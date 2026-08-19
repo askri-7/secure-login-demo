@@ -274,5 +274,13 @@ async githubCallback(
     //res.redirect(`http://localhost:3000`);
   }
 
+@Get('verifyemail')
+async verifyEmail(@Query('token') token: string) {
+  if (!token) {
+    throw new BadRequestException('Verification token is required');
+  }
+  return this.authService.verifyEmail(token);
+}
+
 
 }

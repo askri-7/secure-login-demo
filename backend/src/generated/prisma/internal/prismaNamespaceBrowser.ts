@@ -93,8 +93,9 @@ export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof User
 
 export const EmailVerificationTokenScalarFieldEnum = {
   id: 'id',
+  tokenId: 'tokenId',
+  hashedSecret: 'hashedSecret',
   email: 'email',
-  tokenHash: 'tokenHash',
   expiresAt: 'expiresAt',
   used: 'used',
   createdAt: 'createdAt',
