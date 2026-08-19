@@ -1,0 +1,27 @@
+services:
+  backend:
+    image: ${DOCKERHUB_USERNAME}/secure-login-demo-backend:${IMAGE_TAG}
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    ports:
+      - "3000:3000"
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/secure-login-demo-frontend:${IMAGE_TAG}
+    restart: unless-stopped
+
+    environment:
+      BACKEND_HOST: backend
+      BACKEND_PORT: "3000"
+
+    depends_on:
+      - backend
+
+    ports:
+      - "80:80"

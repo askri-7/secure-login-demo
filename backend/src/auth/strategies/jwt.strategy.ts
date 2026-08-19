@@ -13,7 +13,7 @@ function getCookieValue(request: Request, cookieName: string){
     return null;
   }
 
-  // 3. Split by ";" to get individual cookies
+  
   for (const cookie of cookieHeader.split(';')) {
      const [rawName, ...rawValueParts] = cookie.trim().split('=');
      // cookie.trim() removes leading space

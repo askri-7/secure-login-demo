@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import {Injectable,UnauthorizedException,ConflictException, BadRequestException} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma, User } from '@/generated/prisma/client';
 import { PrismaService } from '@/database/prisma.service';
@@ -46,15 +41,7 @@ export class AuthService {
     };
   }
 
-  /**
-   * Generate a refresh token with a tokenId prefix for fast DB lookup.
-   *
-   * Raw token:  128 hex chars
-   *   tokenId:   first 16 chars — stored plain in DB, indexed, used for lookup
-   *   secret:    remaining 112 chars — hashed with bcrypt, used for validation
-   *
-   * This avoids scanning the entire RefreshToken table on every request.
-   */
+ 
   private async storeRefreshToken(
     client: PrismaService | Prisma.TransactionClient,
     userId: number,
@@ -91,10 +78,9 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  /**
-   * Fast lookup by tokenId (indexed), then ONE bcrypt.compare on the secret.
-   * O(1) lookup instead of O(n) table scan.
-   */
+  // Fast lookup by tokenId (indexed), then ONE bcrypt.compare on the secret.
+   // O(1) lookup instead of O(n) table scan.
+   
   private async findMatchingRefreshToken(
     client: PrismaService | Prisma.TransactionClient,
     refreshToken: string,
@@ -120,10 +106,10 @@ export class AuthService {
     return token;
   }
 
-  /**
-   * Delete old revoked and expired tokens to keep the table small.
-   * Call this periodically (e.g., on startup, via cron, or after logout).
-   */
+  
+   //Delete old revoked and expired tokens to keep the table small.
+   //Call this periodically (e.g., on startup, via cron, or after logout).
+   
   async cleanupOldTokens(): Promise<{ deleted: number }> {
     const result = await this.prisma.refreshToken.deleteMany({
       where: {
