@@ -280,9 +280,9 @@ async verifyEmail(@Query('token') token: string, @Res() res: Response) {
 
   await this.authService.verifyEmail(token);
 
-  // Redirect to frontend success page so token leaves the URL
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-  return res.redirect(`${frontendUrl}/email-verified?status=success`);
+
+  return res.redirect(`${frontendUrl}/verify-email?status=success`);
 }
 
 
