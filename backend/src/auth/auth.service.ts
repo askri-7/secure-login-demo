@@ -204,6 +204,8 @@ export class AuthService {
     );
   }
 
+  
+
   if (!user || !user.password) {
     // TIMING ATTACK FIX: fake bcrypt to match real path duration
     const dummyHash = '$2a$12$abcdefghijklmnopqrstuvwxycdefghijklmnopqrstu';
@@ -217,6 +219,17 @@ export class AuthService {
     });
     throw new UnauthorizedException('Invalid email or password');
   }
+  // After lockout check, before password check:
+if (!user.emailVerified) {
+  await this.audit.log({
+    event: 'LOGIN_FAILURE',
+    userId: user.id,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+    metadata: { reason: 'email_not_verified', email },
+  });
+  throw new UnauthorizedException('Please verify your email before logging in.');
+}
 
   const isPasswordMatched = await bcrypt.compare(password, user.password);
   if (!isPasswordMatched) {
@@ -398,6 +411,7 @@ export class AuthService {
             name: profile.name,
             password: null,
             role: 'USER',
+            emailVerified: true,
           },
         }));
 
@@ -444,7 +458,7 @@ export class AuthService {
 
 
   private getLoginDelay(attempts: number): number {
-    const delays = [0, 0 , 100, 300];
+    const delays = [0, 100, 300];
     return delays[Math.min(attempts, delays.length -1)];
   }
 
@@ -505,7 +519,7 @@ export class AuthService {
         hashedSecret,
         email,
         userId,
-        expiresAt: new Date(Date.now()+ 24*60*60*100),
+        expiresAt: new Date(Date.now()+ 24*60*60*1000),
       },
     });
     return rawToken;

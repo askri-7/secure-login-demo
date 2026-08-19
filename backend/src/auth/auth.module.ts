@@ -11,6 +11,7 @@ import { GoogleOidcService } from './google-oidc.service';
 import { GithubOAuthService } from './github-oauth.service';
 import { AuditLogService } from './audit-log.service';
 import { TokenCleanupService } from './tokencleanup.service';
+import { EmailService } from './email.service';
 @Module({
   imports: [
     PrismaModule,
@@ -30,10 +31,8 @@ import { TokenCleanupService } from './tokencleanup.service';
       },
     }),
   ],
-  providers: [AuthService,
-     JwtStrategy, GithubOAuthService,
-      GoogleOidcService , JwtAuthGuard,
-       RolesGuard, AuditLogService,  TokenCleanupService,],
+  providers: [AuthService, JwtStrategy, GithubOAuthService,
+  GoogleOidcService, JwtAuthGuard, RolesGuard, AuditLogService,EmailService, TokenCleanupService],
   controllers: [AuthController],
   exports: [JwtAuthGuard, RolesGuard],
 })

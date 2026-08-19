@@ -155,16 +155,14 @@ private clearGithubAuthRequestCookie(res: Response) {
 }
 
   
-  @Post('signup')
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) 
-  async signup(@Body() signUpDto: SignUpDto, @Res({ passthrough: true}) res: Response,  @Req() req: Request) {
-    const session = await this.authService.signUp(signUpDto, this.getClientInfo(req));
-    this.setAuthCookies(res, session.accessToken, session.refreshToken)
-    return {user: session.user};
-  }
+@Post('signup')
+@Throttle({ default: { limit: 3, ttl: 60000 } })
+async signup(@Body() signUpDto: SignUpDto, @Req() req: Request) {
+  return this.authService.signUp(signUpDto, this.getClientInfo(req));
+}
 
   @Post('login') 
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) 
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) 
   async login(@Body() loginDto: LoginDto,@Res({ passthrough: true })res: Response,  @Req() req: Request) {
     const session = await this.authService.login(loginDto, this.getClientInfo(req));
     this.setAuthCookies(res, session.accessToken, session.refreshToken);
@@ -274,12 +272,17 @@ async githubCallback(
     //res.redirect(`http://localhost:3000`);
   }
 
-@Get('verifyemail')
-async verifyEmail(@Query('token') token: string) {
+@Get('verify-email')
+async verifyEmail(@Query('token') token: string, @Res() res: Response) {
   if (!token) {
     throw new BadRequestException('Verification token is required');
   }
-  return this.authService.verifyEmail(token);
+
+  await this.authService.verifyEmail(token);
+
+  // Redirect to frontend success page so token leaves the URL
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+  return res.redirect(`${frontendUrl}/email-verified?status=success`);
 }
 
 
