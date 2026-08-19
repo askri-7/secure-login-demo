@@ -19,19 +19,36 @@ enum UserRole {
 }
 
 model User {
-  id            Int       @id @default(autoincrement())et Up Your Project and Manifest File
-
-
-  email         String    @unique
-  name          String
-  password      String?   // now optional  null for OAuth-only users
-  role          UserRole  @default(USER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  refreshTokens RefreshToken[]
-  oauthAccounts OAuthAccount[]
+  id                  Int      @id @default(autoincrement())
+  email               String   @unique
+  name                String
+  password            String?
+  role                UserRole @default(USER)
+  emailVerified       Boolean  @default(false)  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  refreshTokens       RefreshToken[]
+  oauthAccounts       OAuthAccount[]
+  failedLoginAttempts Int      @default(0)
+  lastFailedLoginAt   DateTime?
+  lockedUntil         DateTime?
+  emailVerifications  EmailVerificationToken[] 
 }
 
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  email     String
+  tokenHash String   
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+
+  @@index([email])
+  @@index([expiresAt])
+}
 
 model RefreshToken {
   id           String   @id @db.Uuid

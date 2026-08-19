@@ -156,48 +156,70 @@ export class AuthService {
 
     return { accessToken, refreshToken, user: this.toUserResponse(user) };
   }
-
   async login(
-    loginDto: LoginDto,
-    ctx: { ip: string; userAgent?: string },
-  ): Promise<AuthResponse> {
-    const { email, password } = loginDto;
+  loginDto: LoginDto,
+  ctx: { ip: string; userAgent?: string },
+): Promise<AuthResponse> {
+  const { email, password } = loginDto;
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
+  const user = await this.prisma.user.findUnique({ where: { email } });
 
-    if (!user || !user.password) {
-      await this.audit.log({
-        event: 'LOGIN_FAILURE',
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        metadata: { reason: 'invalid_credentials', email },
-      });
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    const isPasswordMatched = await bcrypt.compare(password, user.password);
-    if (!isPasswordMatched) {
-      await this.audit.log({
-        event: 'LOGIN_FAILURE',
-        userId: user.id,
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        metadata: { reason: 'wrong_password', email },
-      });
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
-
+  // ── LOCKOUT CHECK ──
+  if (user?.lockedUntil && user.lockedUntil > new Date()) {
+    const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
     await this.audit.log({
-      event: 'LOGIN_SUCCESS',
+      event: 'LOGIN_FAILURE',
       userId: user.id,
       ip: ctx.ip,
       userAgent: ctx.userAgent,
+      metadata: { reason: 'account_locked', email, remainingMinutes: mins },
     });
-
-    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+    throw new UnauthorizedException(
+      `Too many failed attempts. Account locked for ${mins} minute(s).`,
+    );
   }
+
+  if (!user || !user.password) {
+    // TIMING ATTACK FIX: fake bcrypt to match real path duration
+    const dummyHash = '$2a$12$abcdefghijklmnopqrstuvwxycdefghijklmnopqrstu';
+    await bcrypt.compare(password, dummyHash);
+
+    await this.audit.log({
+      event: 'LOGIN_FAILURE',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { reason: 'invalid_credentials', email },
+    });
+    throw new UnauthorizedException('Invalid email or password');
+  }
+
+  const isPasswordMatched = await bcrypt.compare(password, user.password);
+  if (!isPasswordMatched) {
+    await this.handleFailedLogin(user, email, ctx);
+    throw new UnauthorizedException('Invalid email or password');
+  }
+
+  // ── SUCCESS: RESET LOCKOUT ──
+  await this.prisma.user.update({
+    where: { id: user.id },
+    data: {
+      failedLoginAttempts: 0,
+      lastFailedLoginAt: null,
+      lockedUntil: null,
+    },
+  });
+
+  const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+
+  await this.audit.log({
+    event: 'LOGIN_SUCCESS',
+    userId: user.id,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+  });
+
+  return { accessToken, refreshToken, user: this.toUserResponse(user) };
+}
 
   async refresh(
     refreshDto: RefreshDto,
@@ -391,5 +413,56 @@ export class AuthService {
     ctx: { ip: string; userAgent?: string },
   ): Promise<AuthResponse> {
     return this.handleOAuthLogin('google', profile, ctx);
+  }
+
+  
+
+
+  private getLoginDelay(attempts: number): number {
+    const delays = [0, 0 , 100, 300];
+    return delays[Math.min(attempts, delays.length -1)];
+  }
+
+  private async handleFailedLogin(
+    user:User,
+    email: string,
+    ctx: {ip: string; userAgent?: string},
+  ){
+    const now = new Date();
+    const oneMinuteAgo = new Date(now.getTime() - 60*1000);
+    const isNewWindow = !user.lastFailedLoginAt || user.lastFailedLoginAt < oneMinuteAgo;
+    const attempts = isNewWindow ? 1 : user.failedLoginAttempts + 1 ;
+
+    const lockedUntil = attempts >= 3 
+    ? new Date(now.getTime() +15 *60*1000)
+    : user.lockedUntil;
+
+    await  this.prisma.user.update({
+      where : {id : user.id },
+      data : {
+        failedLoginAttempts: attempts,
+        lastFailedLoginAt : now ,
+        lockedUntil,
+      },
+    });
+
+    await this.audit.log({
+      event: 'LOGIN_FAILURE',
+      userId: user.id , 
+      ip: ctx.ip, 
+      userAgent: ctx.userAgent,
+      metadata:{
+        reason : 'wrong_password',
+        email,
+        attempts: attempts,
+        locked: attempts >= 3,
+      }
+    });
+
+    const delayMs = this.getLoginDelay(attempts);
+    if(delayMs > 0)
+    {
+      await new Promise ((resolve) => setTimeout(resolve, delayMs));
+    }
   }
 }
