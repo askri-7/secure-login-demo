@@ -1,14 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../lib/api";
-import OAuthButtons from "./components/OAuthButtons";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -16,58 +15,80 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // login() no longer returns a token — the backend sets it as an
-      // httpOnly cookie automatically. Nothing to store here.
       await login(email, password);
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setError(msg);
     } finally {
       setLoading(false);
     }
   }
 
+  // Check if error is about unverified email
+  const isUnverifiedError = error?.toLowerCase().includes("verify your email");
+
   return (
-    <div className="auth-page">
-      <form className="auth-card" onSubmit={handleSubmit}>
-        <p className="auth-eyebrow">Authenticate</p>
-        <h1>Sign in</h1>
-        <p className="auth-subtitle">enter accoutn credentials</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-900">Sign in</h2>
+          <p className="text-gray-600 mt-2">Enter your account credentials</p>
+        </div>
 
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="email"
-        />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={8}
-          autoComplete="current-password"
-        />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="current-password"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-        {error && <p className="auth-error">{error}</p>}
+          {error && (
+            <div className={`px-4 py-3 rounded-md text-sm ${isUnverifiedError ? 'bg-yellow-50 text-yellow-800' : 'bg-red-50 text-red-700'}`}>
+              {error}
+              {isUnverifiedError && (
+                <p className="mt-1 text-xs">
+                  Check your inbox for the verification link, or sign up again to resend it.
+                </p>
+              )}
+            </div>
+          )}
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Signing in…" : "Sign in"}
-        </button>
-        
-        <p className="oauth-divider">or</p>
-        <OAuthButtons />
-      
-        <p className="auth-switch">
-          No account yet? <Link to="/signup">Sign up</Link>
-        </p>
-      </form>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          >
+            {loading ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center text-sm text-gray-600">
+          No account yet?{" "}
+          <Link to="/signup" className="text-blue-600 hover:underline font-medium">
+            Sign up
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
