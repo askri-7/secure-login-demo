@@ -124,7 +124,7 @@ export class AuthService {
     });
     return { deleted: result.count };
   }
-  async signUp(
+async signUp(
   signUpDto: SignUpDto,
   ctx: { ip: string; userAgent?: string },
 ): Promise<{ message: string }> {
@@ -151,30 +151,26 @@ export class AuthService {
     },
   });
 
-  // Generate token (always works — Redis is running)
   const verificationToken = await this.emailVerification.createToken(user.id, email);
 
-  // Build 
+  const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+  const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
 
-const apiUrl = process.env.API_URL ?? 'http://localhost:3000';
-const verificationUrl = `${apiUrl}/auth/verify-email?token=${verificationToken}`;
-
-  // TRY to send email but don't crash if SMTP fails
   try {
     await this.emailService.sendVerificationEmail(email, name, verificationUrl);
   } catch (err) {
-    this.audit.log({
+    await this.audit.log({
       event: 'SIGNUP',
       userId: user.id,
       ip: ctx.ip,
       userAgent: ctx.userAgent,
-      metadata: { 
-        email: user.email, 
+      metadata: {
+        email: user.email,
         warning: 'email_failed',
         error: err instanceof Error ? err.message : 'unknown',
       },
     });
-    
+
     return {
       message: 'Account created, but email delivery failed. Please contact support or try signing up again later.',
     };
@@ -192,6 +188,8 @@ const verificationUrl = `${apiUrl}/auth/verify-email?token=${verificationToken}`
     message: 'Account created. Please check your email to verify your account.',
   };
 }
+
+
 
 
   async login(
@@ -358,87 +356,43 @@ if (!user.emailVerified) {
     return { message: 'Logout successful' };
   }
 
-  private async handleOAuthLogin(
-    provider: string,
-    profile: {
-      providerUserId: string;
-      email: string | null;
-      emailVerified: boolean;
-      name: string;
-    },
-    ctx: { ip: string; userAgent?: string },
-  ): Promise<AuthResponse> {
-    const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
-      where: {
-        provider_providerUserId: {
-          provider,
-          providerUserId: profile.providerUserId,
-        },
+private async handleOAuthLogin(
+  provider: string,
+  profile: {
+    providerUserId: string;
+    email: string | null;
+    emailVerified: boolean;
+    name: string;
+  },
+  ctx: { ip: string; userAgent?: string },
+): Promise<AuthResponse> {
+  const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
+    where: {
+      provider_providerUserId: {
+        provider,
+        providerUserId: profile.providerUserId,
       },
-      include: { user: true },
-    });
+    },
+    include: { user: true },
+  });
 
-    if (existingOAuthAccount) {
-      const { accessToken, refreshToken } = await this.issueTokenPair(
-        this.prisma,
-        existingOAuthAccount.user,
-      );
+  // ── Returning OAuth user ──
+  if (existingOAuthAccount) {
+    const user = existingOAuthAccount.user;
 
-      await this.audit.log({
-        event: `OAUTH_${provider.toUpperCase()}_SUCCESS` as any,
-        userId: existingOAuthAccount.user.id,
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        metadata: { provider, providerUserId: profile.providerUserId, returning: true },
-      });
-
-      return {
-        accessToken,
-        refreshToken,
-        user: this.toUserResponse(existingOAuthAccount.user),
-      };
-    }
-
-    if (!profile.email || !profile.emailVerified) {
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
       await this.audit.log({
         event: `OAUTH_${provider.toUpperCase()}_FAILURE` as any,
+        userId: user.id,
         ip: ctx.ip,
         userAgent: ctx.userAgent,
-        metadata: { provider, reason: 'unverified_email' },
+        metadata: { reason: 'account_locked', provider, remainingMinutes: mins },
       });
-      throw new BadRequestException(
-        `Your ${provider} account needs a verified email address to sign in.`,
+      throw new UnauthorizedException(
+        `Too many failed attempts. Account locked for ${mins} minute(s).`,
       );
     }
-
-    const { user, linked } = await this.prisma.$transaction(async (tx) => {
-      const existingUser = await tx.user.findUnique({
-        where: { email: profile.email! },
-      });
-
-      const user =
-        existingUser ??
-        (await tx.user.create({
-          data: {
-            email: profile.email!,
-            name: profile.name,
-            password: null,
-            role: 'USER',
-            emailVerified: true,
-          },
-        }));
-
-      await tx.oAuthAccount.create({
-        data: {
-          id: randomUUID(),
-          provider,
-          providerUserId: profile.providerUserId,
-          userId: user.id,
-        },
-      });
-
-      return { user, linked: !!existingUser };
-    });
 
     const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
 
@@ -447,11 +401,80 @@ if (!user.emailVerified) {
       userId: user.id,
       ip: ctx.ip,
       userAgent: ctx.userAgent,
-      metadata: { provider, providerUserId: profile.providerUserId, returning: false, linked },
+      metadata: { provider, providerUserId: profile.providerUserId, returning: true },
     });
 
-    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+    return {
+      accessToken,
+      refreshToken,
+      user: this.toUserResponse(user),
+    };
   }
+
+  // ── New OAuth user ──
+  if (!profile.email || !profile.emailVerified) {
+    await this.audit.log({
+      event: `OAUTH_${provider.toUpperCase()}_FAILURE` as any,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { provider, reason: 'unverified_email' },
+    });
+    throw new BadRequestException(
+      `Your ${provider} account needs a verified email address to sign in.`,
+    );
+  }
+
+  const { user, linked } = await this.prisma.$transaction(async (tx) => {
+    const existingUser = await tx.user.findUnique({
+      where: { email: profile.email! },
+    });
+
+    // FIX: Block OAuth linking if local account is locked
+    if (existingUser?.lockedUntil && existingUser.lockedUntil > new Date()) {
+      const mins = Math.ceil((existingUser.lockedUntil.getTime() - Date.now()) / 60000);
+      throw new UnauthorizedException(
+        `Too many failed attempts. Account locked for ${mins} minute(s).`,
+      );
+    }
+
+    const user =
+      existingUser ??
+      (await tx.user.create({
+        data: {
+          email: profile.email!,
+          name: profile.name,
+          password: null,
+          role: 'USER',
+          emailVerified: true,
+        },
+      }));
+
+    await tx.oAuthAccount.create({
+      data: {
+        id: randomUUID(),
+        provider,
+        providerUserId: profile.providerUserId,
+        userId: user.id,
+      },
+    });
+
+    return { user, linked: !!existingUser };
+  });
+
+  // If we get here, either a new user was created or an existing one was linked.
+  // Log the lockout failure separately since the transaction would have rolled back.
+  const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+
+  await this.audit.log({
+    event: `OAUTH_${provider.toUpperCase()}_SUCCESS` as any,
+    userId: user.id,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+    metadata: { provider, providerUserId: profile.providerUserId, returning: false, linked },
+  });
+
+  return { accessToken, refreshToken, user: this.toUserResponse(user) };
+}
 
   async loginWithGithub(
     profile: GithubProfile,
