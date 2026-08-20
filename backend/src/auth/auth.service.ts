@@ -376,7 +376,7 @@ private async handleOAuthLogin(
     include: { user: true },
   });
 
-  // ── Returning OAuth user ──
+  
   if (existingOAuthAccount) {
     const user = existingOAuthAccount.user;
 
