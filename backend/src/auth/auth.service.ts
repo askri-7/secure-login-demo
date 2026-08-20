@@ -154,9 +154,10 @@ export class AuthService {
   // Generate token (always works — Redis is running)
   const verificationToken = await this.emailVerification.createToken(user.id, email);
 
-  // Build URL
-  const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-  const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+  // Build 
+
+const apiUrl = process.env.API_URL ?? 'http://localhost:3000';
+const verificationUrl = `${apiUrl}/auth/verify-email?token=${verificationToken}`;
 
   // TRY to send email but don't crash if SMTP fails
   try {

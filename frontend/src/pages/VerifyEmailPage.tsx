@@ -1,43 +1,65 @@
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 
-// The backend's GET /auth/verify-email handler redirects here with
-// ?status=success once the token has been validated and the user's
-// emailVerified flag flipped to true. Any other value (or an outright
-// error response, since the backend only redirects on success) means the
-// link was invalid, already used, or expired.
-export default function EmailVerifiedPage() {
-  const navigate = useNavigate();
+export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
-  const success = searchParams.get("status") === "success";
+  
+  // Backend sends ?error=... on failure
+  // Backend sends ?status=success on success (legacy) or redirects to / on success (new)
+  const error = searchParams.get("error");
+  const status = searchParams.get("status");
+
+  // Determine what to show
+  const hasError = !!error || (!status && !error); // error param OR no params at all (direct access)
+  const isSuccess = status === "success";
+
+  let eyebrow = "Verifying...";
+  let title = "Please wait";
+  let message = "We're processing your verification.";
+  let buttonText = "Go to sign in";
+  let buttonLink = "/login";
+
+  if (isSuccess) {
+    eyebrow = "Email verified";
+    title = "You're all set";
+    message = "Your email has been verified. You can sign in now.";
+  } else if (error === "expired_or_invalid") {
+    eyebrow = "Verification failed";
+    title = "That link didn't work";
+    message = "This verification link has expired or is invalid. Try signing up again to receive a new one.";
+    buttonText = "Sign up again";
+    buttonLink = "/signup";
+  } else if (error === "missing_token") {
+    eyebrow = "Verification failed";
+    title = "Link is expired";
+    message = "Invalid verification link. No token was provided.";
+    buttonText = "Sign up again";
+    buttonLink = "/signup";
+  } else if (error) {
+    eyebrow = "Verification failed";
+    title = "Something went wrong";
+    message = "We couldn't verify your email. Please try again later.";
+    buttonText = "Sign up again";
+    buttonLink = "/signup";
+  }
 
   return (
     <div className="auth-page">
       <div className="auth-card">
-        {success ? (
-          <>
-            <p className="auth-eyebrow">Email verified</p>
-            <h1>You're all set</h1>
-            <p className="auth-subtitle">
-              Your email has been verified. You can sign in now.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="auth-eyebrow">Verification failed</p>
-            <h1>That link didn't work</h1>
-            <p className="auth-subtitle">
-              This verification link is invalid or has expired. Try signing
-              up again, or sign in if you've already verified your email.
-            </p>
-          </>
-        )}
+        <p className="auth-eyebrow">{eyebrow}</p>
+        <h1>{title}</h1>
+        <p className="auth-subtitle">{message}</p>
 
-        {/* type="submit" (no surrounding <form>) just for the red primary
-            styling — .auth-card button[type=submit] is how this codebase
-            themes its main call-to-action buttons. */}
-        <button type="submit" onClick={() => navigate("/login")}>
-          Go to sign in
+        <button type="submit">
+          <Link to={buttonLink} style={{ color: "inherit", textDecoration: "none" }}>
+            {buttonText}
+          </Link>
         </button>
+
+        {hasError && (
+          <p className="auth-switch">
+            Already verified? <Link to="/login">Sign in</Link>
+          </p>
+        )}
       </div>
     </div>
   );

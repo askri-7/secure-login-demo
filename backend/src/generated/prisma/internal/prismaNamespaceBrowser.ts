@@ -52,7 +52,6 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
-  EmailVerificationToken: 'EmailVerificationToken',
   RefreshToken: 'RefreshToken',
   OAuthAccount: 'OAuthAccount',
   AuditLog: 'AuditLog'
@@ -89,20 +88,6 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
-
-
-export const EmailVerificationTokenScalarFieldEnum = {
-  id: 'id',
-  tokenId: 'tokenId',
-  hashedSecret: 'hashedSecret',
-  email: 'email',
-  expiresAt: 'expiresAt',
-  used: 'used',
-  createdAt: 'createdAt',
-  userId: 'userId'
-} as const
-
-export type EmailVerificationTokenScalarFieldEnum = (typeof EmailVerificationTokenScalarFieldEnum)[keyof typeof EmailVerificationTokenScalarFieldEnum]
 
 
 export const RefreshTokenScalarFieldEnum = {

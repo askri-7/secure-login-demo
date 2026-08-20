@@ -55,6 +55,7 @@ function RootPage() {
  */
 
 
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -62,7 +63,7 @@ export default function App() {
         <Route path="/" element={<RootPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/email-verified" element={<EmailVerifiedPage />} />
+        <Route path="/verify-email" element={<EmailVerifiedPage />} /> {/* ← CHANGED from /email-verified */}
       </Routes>
     </BrowserRouter>
   );

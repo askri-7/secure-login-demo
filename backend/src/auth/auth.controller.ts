@@ -272,28 +272,34 @@ async githubCallback(
     res.redirect(`${frontendUrl}/`);
     //res.redirect(`http://localhost:3000`);
   }
-
 @Get('verify-email')
 async verifyEmail(
   @Query('token') token: string,
   @Res() res: Response,
 ) {
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+
+  // Missing token → redirect with error
   if (!token) {
-    throw new BadRequestException('Verification token is required');
+    return res.redirect(`${frontendUrl}/verify-email?error=missing_token`);
   }
 
-  // 1 Verify token → returns user with emailVerified = true
-  const user = await this.emailVerification.verifyToken(token);
+  try {
+    // 1. Verify token → returns user
+    const user = await this.emailVerification.verifyToken(token);
 
-  // 2 Create session (access + refresh tokens)
-  const session = await this.authService.createSession(user);
+    // 2. Create session
+    const session = await this.authService.createSession(user);
 
-  // 3 Set cookies → user is now logged in
-  this.setAuthCookies(res, session.accessToken, session.refreshToken);
+    // 3. Set cookies
+    this.setAuthCookies(res, session.accessToken, session.refreshToken);
 
-  // 4 Redirect to frontend home → React sees cookies, shows profile
-  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-  res.redirect(frontendUrl);
+    // 4. Redirect to home (logged in)
+    return res.redirect(frontendUrl);
+  } catch (err) {
+    // ANY error (expired, invalid, already used) → redirect with error
+    return res.redirect(`${frontendUrl}/verify-email?error=expired_or_invalid`);
+  }
 }
 
 

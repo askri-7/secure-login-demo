@@ -5,6 +5,8 @@ import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import type { Express } from 'express';
 import { AllExceptionsFilter } from '@/filters/all-exceptions.filter';
+import { json, urlencoded } from 'express';
+
 
 dotenv.config();
 
@@ -18,6 +20,9 @@ async function bootstrap() {
   '172.16.0.0/12',
   '192.168.0.0/16',
 ]);
+
+expressApp.use(json({ limit: '10kb' }));
+expressApp.use(urlencoded({ extended: true, limit: '10kb' }));
 
   app.use(helmet({
     contentSecurityPolicy: {

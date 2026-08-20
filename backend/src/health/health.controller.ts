@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '@/database/prisma.service';
 
 @Controller('health')
@@ -22,22 +22,17 @@ export class HealthController {
    //Checks DB connection because without DB, auth is dead.
    
   @Get('ready')
-  async ready() {
-    try {
-      // Lightweight DB ping 
-      await this.prisma.$queryRaw`SELECT 1`;
-      return {
-        status: 'ready',
-        db: 'connected',
-        timestamp: new Date().toISOString(),
-      };
-    } catch (err) {
-      return {
-        status: 'not ready',
-        db: 'disconnected',
-        error: err instanceof Error ? err.message : 'unknown',
-        timestamp: new Date().toISOString(),
-      };
-    }
+async ready() {
+  try {
+    await this.prisma.$queryRaw`SELECT 1`;
+    return { status: 'ready', db: 'connected' };
+  } catch (err) {
+    // Return 503 so load balancer drains traffic
+    throw new ServiceUnavailableException({
+      status: 'not ready',
+      db: 'disconnected',
+      error: err instanceof Error ? err.message : 'Unknown database error',
+    });
   }
+}
 }
