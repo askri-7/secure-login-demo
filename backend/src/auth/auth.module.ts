@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
+
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from '@/database/prisma.module';
@@ -11,19 +11,18 @@ import { GoogleOidcService } from './google-oidc.service';
 import { GithubOAuthService } from './github-oauth.service';
 import { AuditLogService } from './audit-log.service';
 import { TokenCleanupService } from './tokencleanup.service';
-import { EmailService } from './email.service';
+import { EmailModule } from '@/email/email.module';
+
 @Module({
   imports: [
     PrismaModule,
-    PassportModule,
+    EmailModule, 
     JwtModule.registerAsync({
       useFactory: () => {
         const jwtSecret = process.env.JWT_SECRET;
-
         if (!jwtSecret) {
           throw new Error('JWT_SECRET is required');
         }
-
         return {
           secret: jwtSecret,
           signOptions: { expiresIn: '15m' },
@@ -31,9 +30,18 @@ import { EmailService } from './email.service';
       },
     }),
   ],
-  providers: [AuthService, JwtStrategy, GithubOAuthService,
-  GoogleOidcService, JwtAuthGuard, RolesGuard, AuditLogService,EmailService, TokenCleanupService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    GithubOAuthService,
+    GoogleOidcService,
+    JwtAuthGuard,
+    RolesGuard,
+    AuditLogService,
+    TokenCleanupService,
+    // EmailService REMOVED — now comes from EmailModule
+  ],
   controllers: [AuthController],
-  exports: [JwtAuthGuard, RolesGuard],
+  exports: [JwtAuthGuard, RolesGuard, AuthService],  // ← AuthService exported for EmailVerificationController
 })
 export class AuthModule {}

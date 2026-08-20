@@ -10,8 +10,8 @@ import { RefreshDto } from './dto/refresh.dto';
 import { GithubProfile } from './github-oauth.service';
 import { GoogleProfile } from './google-oidc.service';
 import { AuditLogService } from './audit-log.service';
-import { EmailService } from './email.service';
-
+import { EmailVerificationService } from '@/email/email-verification.service';
+import { EmailService } from '@/email/email.service';
 type AuthUser = Pick<User, 'id' | 'email' | 'name' | 'role'>;
 
 type AuthResponse = {
@@ -28,11 +28,12 @@ type AuthResponse = {
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
-    private audit: AuditLogService,
-    private emailService: EmailService,
-  ) {}
+  private prisma: PrismaService,
+  private jwtService: JwtService,
+  private audit: AuditLogService,
+  private emailService: EmailService,
+  private emailVerification: EmailVerificationService,  
+) {}
 
   private toUserResponse(user: AuthUser) {
     return {
@@ -124,61 +125,72 @@ export class AuthService {
     return { deleted: result.count };
   }
   async signUp(
-    signUpDto: SignUpDto,
-    ctx: { ip: string; userAgent?: string },
-  ): Promise<{ message: string }> { // Changed: no longer auto-logs in
-    const { name, email, password, confirmPassword } = signUpDto;
+  signUpDto: SignUpDto,
+  ctx: { ip: string; userAgent?: string },
+): Promise<{ message: string }> {
+  const { name, email, password, confirmPassword } = signUpDto;
 
-    // 1. Validate password match 
-    if (password !== confirmPassword) {
-      throw new BadRequestException('Passwords do not match');
-    }
+  if (password !== confirmPassword) {
+    throw new BadRequestException('Passwords do not match');
+  }
 
-    const existingUser = await this.prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      await this.audit.log({
-        event: 'LOGIN_FAILURE',
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        metadata: { reason: 'email_already_exists', email },
-      });
-      throw new ConflictException('Email already in use');
-    }
+  const existingUser = await this.prisma.user.findUnique({ where: { email } });
+  if (existingUser) {
+    throw new ConflictException('Email already in use');
+  }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-    
-    //  2. Create user with emailVerified: false 
-    const user = await this.prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: 'USER',
-        emailVerified: false,
-      },
-    });
+  const hashedPassword = await bcrypt.hash(password, 12);
 
-    // 3. Generate verification token 
-    const verificationToken = await this.createEmailVerificationToken(user.id, email);
+  const user = await this.prisma.user.create({
+    data: {
+      name,
+      email,
+      password: hashedPassword,
+      role: 'USER',
+      emailVerified: false,
+    },
+  });
 
-    // 4. Send email 
-    const baseUrl = process.env.FRONTEND_URL ;
-    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+  // Generate token (always works — Redis is running)
+  const verificationToken = await this.emailVerification.createToken(user.id, email);
+
+  // Build URL
+  const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+  const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+
+  // TRY to send email but don't crash if SMTP fails
+  try {
     await this.emailService.sendVerificationEmail(email, name, verificationUrl);
-
-    await this.audit.log({
+  } catch (err) {
+    this.audit.log({
       event: 'SIGNUP',
       userId: user.id,
       ip: ctx.ip,
       userAgent: ctx.userAgent,
-      metadata: { email: user.email },
+      metadata: { 
+        email: user.email, 
+        warning: 'email_failed',
+        error: err instanceof Error ? err.message : 'unknown',
+      },
     });
-
-    //  5. Return message (must verify email first) ──
+    
     return {
-      message: 'Account created. Please check your email to verify your account.',
+      message: 'Account created, but email delivery failed. Please contact support or try signing up again later.',
     };
   }
+
+  await this.audit.log({
+    event: 'SIGNUP',
+    userId: user.id,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+    metadata: { email: user.email },
+  });
+
+  return {
+    message: 'Account created. Please check your email to verify your account.',
+  };
+}
 
 
   async login(
@@ -507,55 +519,15 @@ if (!user.emailVerified) {
 
 
   // email verification 
-  private async createEmailVerificationToken(userId: number, email: string){
-    const rawToken = randomBytes(32).toString('hex');
-    const tokenId = rawToken.slice(0,16);
-    const tokenSecret = rawToken.slice(16);
-    const hashedSecret = await bcrypt.hash(tokenSecret,12);
 
-    await this.prisma.emailVerificationToken.create({
-      data: {
-        tokenId,
-        hashedSecret,
-        email,
-        userId,
-        expiresAt: new Date(Date.now()+ 24*60*60*1000),
-      },
-    });
-    return rawToken;
-  }
 
-  async verifyEmail(token: string) {
-    const tokenId = token.slice(0, 16);
-    const tokenSecret = token.slice(16);
-    const record = await this.prisma.emailVerificationToken.findUnique({
-      where: { tokenId},
-    });
-
-    if( !record || record.used || record.expiresAt <= new Date()){
-       throw new UnauthorizedException('Invalid or expired verification link');
-
-    }
-
-    const valid = await bcrypt.compare(tokenSecret, record.hashedSecret);
-    if (!valid) {
-      throw new UnauthorizedException('Invalid or expired verification link');
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.emailVerificationToken.update({
-        where: { id: record.id },
-        data: { used: true },
-      });
-
-      await tx.user.update({
-        where: { id: record.userId },
-        data: { emailVerified: true },
-      });
-    });
-
-    return { message: 'Email verified successfully. You can now log in.' };
-  }
+async createSession(user: AuthUser): Promise<AuthResponse> {
+  const tokens = await this.issueTokenPair(this.prisma, user);
+  return {
+    ...tokens,
+    user: this.toUserResponse(user),
+  };
+}
 
   
 }

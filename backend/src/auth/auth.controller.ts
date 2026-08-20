@@ -7,17 +7,18 @@ import type { Request, Response } from 'express';
 import { GithubOAuthService, type GithubAuthRequest } from './github-oauth.service';;
 import { GoogleOidcService, type GoogleAuthRequest } from './google-oidc.service';
 import { Throttle } from '@nestjs/throttler';
-
+import { EmailVerificationService } from '@/email/email-verification.service';
 
 @Controller('auth')
 
 
 export class AuthController {
   constructor(
-    private authService: AuthService,
-    private googleOidcService: GoogleOidcService,
-    private githubOAuthService: GithubOAuthService, 
-  ) {}
+  private authService: AuthService,
+  private googleOidcService: GoogleOidcService,
+  private githubOAuthService: GithubOAuthService,
+  private emailVerification: EmailVerificationService,  // ← NEW
+) {}
    // google cookie helper
   private setGoogleAuthRequestCookie(res: Response, request: GoogleAuthRequest){
     const isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
@@ -156,13 +157,13 @@ private clearGithubAuthRequestCookie(res: Response) {
 
   
 @Post('signup')
-@Throttle({ default: { limit: 3, ttl: 60000 } })
+@Throttle({ default: { limit: 10, ttl: 60000 } })
 async signup(@Body() signUpDto: SignUpDto, @Req() req: Request) {
   return this.authService.signUp(signUpDto, this.getClientInfo(req));
 }
 
   @Post('login') 
-  @Throttle({ default: { limit: 3, ttl: 60000 } }) 
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) 
   async login(@Body() loginDto: LoginDto,@Res({ passthrough: true })res: Response,  @Req() req: Request) {
     const session = await this.authService.login(loginDto, this.getClientInfo(req));
     this.setAuthCookies(res, session.accessToken, session.refreshToken);
@@ -273,16 +274,26 @@ async githubCallback(
   }
 
 @Get('verify-email')
-async verifyEmail(@Query('token') token: string, @Res() res: Response) {
+async verifyEmail(
+  @Query('token') token: string,
+  @Res() res: Response,
+) {
   if (!token) {
     throw new BadRequestException('Verification token is required');
   }
 
-  await this.authService.verifyEmail(token);
+  // 1 Verify token → returns user with emailVerified = true
+  const user = await this.emailVerification.verifyToken(token);
 
+  // 2 Create session (access + refresh tokens)
+  const session = await this.authService.createSession(user);
+
+  // 3 Set cookies → user is now logged in
+  this.setAuthCookies(res, session.accessToken, session.refreshToken);
+
+  // 4 Redirect to frontend home → React sees cookies, shows profile
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-  // Was: /email-verified — fix to match your route
-  return res.redirect(`${frontendUrl}/verify-email?status=success`);
+  res.redirect(frontendUrl);
 }
 
 
