@@ -10,6 +10,9 @@ import { APP_GUARD } from '@nestjs/core';
 import { HealthController } from './health/health.controller';
 import { HealthModule } from './health/health.module';
 import { CorrelationIdMiddleware } from '@/middleware/correlation-id.middleware';
+import { EmailVerificationModule } from './email-verification/email-verification.module';
+import { EmailController } from './email/email.controller';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -26,8 +29,10 @@ import { CorrelationIdMiddleware } from '@/middleware/correlation-id.middleware'
       },
     ]),
     HealthModule,
+    EmailVerificationModule,
+    EmailModule,
   ],
-  controllers: [AppController, HealthController],
+  controllers: [AppController, HealthController, EmailController],
   providers: [
     AppService,
     {

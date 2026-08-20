@@ -281,7 +281,7 @@ async verifyEmail(@Query('token') token: string, @Res() res: Response) {
   await this.authService.verifyEmail(token);
 
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-
+  // Was: /email-verified — fix to match your route
   return res.redirect(`${frontendUrl}/verify-email?status=success`);
 }
 
