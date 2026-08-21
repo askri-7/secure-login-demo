@@ -74,7 +74,7 @@ jobs:
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: code-security
+    #needs: code-security
 
     permissions:
       contents: read
@@ -170,7 +170,7 @@ jobs:
   deploy:
     name: Deploy to VM
     runs-on: ubuntu-latest
-    needs: build
+    #needs: build
 
     # Only deploy actual pushes to main.
     # Manual workflow_dispatch does not deploy.

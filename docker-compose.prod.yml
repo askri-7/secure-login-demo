@@ -1,26 +1,37 @@
-# docker-compose.prod.yml — PRODUCTION ONLY (Azure VM)
+# docker-compose.prod.yml — PRODUCTION (VM with containerized DB)
 # Pulls pre-built images from Docker Hub
-# Secrets loaded from Azure Key Vault at runtime
 
 services:
   backend:
-    image: ${DOCKERHUB_USERNAME}/secure-login-demo-backend:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/secure-login-demo-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    env_file:
+      - ./backend.env
     environment:
       NODE_ENV: production
       PORT: "3000"
-      AZURE_KEY_VAULT_NAME: ${AZURE_KEY_VAULT_NAME}
-      # All other secrets (JWT_SECRET, DATABASE_URL, etc.) 
-      # are loaded from Key Vault by the backend on startup
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # Backend port is NOT exposed to internet — only Nginx can reach it
-    # ports: "3000:3000"  ← REMOVED for security
     depends_on:
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
-    image: ${DOCKERHUB_USERNAME}/secure-login-demo-frontend:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/secure-login-demo-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       BACKEND_HOST: backend
@@ -29,18 +40,77 @@ services:
       - backend
     ports:
       - "80:80"
-      - "443:443"  # HTTPS port
+      - "443:443"
     volumes:
-      - ./ssl:/etc/nginx/ssl:ro  # SSL certificates
+      - ./nginx.prod.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - ./db.env
+    # NO ports exposed — only backend can reach it via Docker network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # Redis is NOT exposed publicly — only backend can reach it
-    # ports: "6379:6379"  ← REMOVED for security
+    # NO ports exposed
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
+  postgres_data:
   redis_data:
+  letsencrypt:
+  certbot-www:
