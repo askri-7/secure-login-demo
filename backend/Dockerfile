@@ -31,6 +31,7 @@ RUN npm run build
 # into the final image, without needing a second `npm ci`.
 RUN npm prune --omit=dev
 
+
 # ---------------------------------------------------------------------------
 # 3) runtime: minimal final image, non-root user, only what's needed to run.
 # ---------------------------------------------------------------------------
@@ -46,15 +47,23 @@ COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/dist ./dist
 COPY --from=build --chown=app:app /app/prisma ./prisma
 COPY --from=build --chown=app:app /app/package.json ./package.json
+COPY --from=build --chown=app:app /app/prisma.config.ts ./prisma.config.ts
+
+# NEW: Install Prisma CLI globally so it's available after prune
+RUN npm install -g prisma
+
+# NEW: Regenerate Prisma client in the runtime image
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" prisma generate
+
+# NEW: Copy entrypoint
+COPY --chown=app:app docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh
 
 USER app
 
 EXPOSE 3000
 
-# Uses the app's own /health/live endpoint — same one you'll eventually point
-# k8s liveness/readiness probes at.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD node -e "require('http').get({host:'127.0.0.1',port:process.env.PORT||3000,path:'/health/live',timeout:3000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
-# NOTE: entry point is dist/src/main.js, not dist/main.js — see chat notes.
-CMD ["node", "dist/src/main.js"]
+CMD ["./docker-entrypoint.sh"]

@@ -1,6 +1,13 @@
+# docker-compose.yml — LOCAL DEVELOPMENT ONLY
+# Builds backend & frontend from source code on your machine
+
 services:
   backend:
-    image: ${DOCKERHUB_USERNAME}/secure-login-demo-backend:${IMAGE_TAG}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    # Name the image after building (for caching)
+    image: secure-login-demo-backend:local
     restart: unless-stopped
     env_file:
       - ./backend/.env
@@ -13,7 +20,10 @@ services:
       - redis
 
   frontend:
-    image: ${DOCKERHUB_USERNAME}/secure-login-demo-frontend:${IMAGE_TAG}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: secure-login-demo-frontend:local
     restart: unless-stopped
     environment:
       BACKEND_HOST: backend
@@ -23,7 +33,6 @@ services:
     ports:
       - "80:80"
 
-  # NEW: PostgreSQL for local dev (production uses Flexible Server)
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -32,11 +41,10 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-authdb}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # NEW: Redis for tokens, sessions, rate limiting
   redis:
     image: redis:7-alpine
     restart: unless-stopped
