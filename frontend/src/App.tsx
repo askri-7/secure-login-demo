@@ -4,6 +4,7 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ProfilePage from "./pages/ProfilePage";
+import EmailVerifiedPage from "./pages/VerifyEmailPage";
 import { fetchMe } from "./lib/api";
 
 type User = { id: number; email: string; name: string; role: string };
@@ -54,6 +55,7 @@ function RootPage() {
  */
 
 
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -61,6 +63,7 @@ export default function App() {
         <Route path="/" element={<RootPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/verify-email" element={<EmailVerifiedPage />} /> {/* ← CHANGED from /email-verified */}
       </Routes>
     </BrowserRouter>
   );

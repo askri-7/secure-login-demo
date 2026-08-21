@@ -5,6 +5,7 @@ import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import type { Express } from 'express';
 import { AllExceptionsFilter } from '@/filters/all-exceptions.filter';
+import { json, urlencoded } from 'express';
 // import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
 
 dotenv.config();
@@ -34,7 +35,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
   const expressApp = app.getHttpAdapter().getInstance() as Express;
-  expressApp.set('trust proxy', true);
+  expressApp.set('trust proxy', [
+    'loopback',
+    '10.0.0.0/8',
+    '172.16.0.0/12',
+    '192.168.0.0/16',
+  ]);
+
+  expressApp.use(json({ limit: '10kb' }));
+  expressApp.use(urlencoded({ extended: true, limit: '10kb' }));
 
   app.use(helmet({
     contentSecurityPolicy: {

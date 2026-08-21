@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { signup } from "../lib/api";
 import OAuthButtons from "./components/OAuthButtons";
 
@@ -7,25 +7,52 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  // Signup no longer logs the user in — the backend creates an unverified
+  // account and emails a verification link. Once that succeeds we swap the
+  // form out for a "check your email" notice instead of navigating away.
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // signup() no longer returns a token — the backend sets it as an
-      // httpOnly cookie automatically. Nothing to store here.
-      await signup(name, email, password);
-      navigate("/");
+      await signup(name, email, password, confirmPassword);
+      setSubmittedEmail(email);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (submittedEmail) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <p className="auth-eyebrow">Almost there</p>
+          <h1>Check your email</h1>
+          <p className="auth-subtitle">
+            We sent a verification link to <strong>{submittedEmail}</strong>.
+            Click it to activate your account, then sign in.
+          </p>
+
+          <p className="auth-switch">
+            <Link to="/login">Back to sign in</Link>
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -63,6 +90,17 @@ export default function SignupPage() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+          autoComplete="new-password"
+        />
+
+        <label htmlFor="confirmPassword">Confirm password</label>
+        <input
+          id="confirmPassword"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
           required
           minLength={8}
           autoComplete="new-password"

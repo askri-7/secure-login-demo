@@ -136,10 +136,19 @@ export async function login(email: string, password: string): Promise<{ user: Us
   return handleResponse(res, "Login failed");
 }
 
-export async function signup(name: string, email: string, password: string): Promise<{ user: User }> {
+export async function signup(
+  name: string,
+  email: string,
+  password: string,
+  confirmPassword: string
+): Promise<{ message: string }> {
+  // Backend now validates password === confirmPassword itself, creates the
+  // user as unverified, and emails a verification link. No cookies are set
+  // and no user is returned here — the account isn't usable until the
+  // email link is clicked.
   const res = await fetchWithAuth(`${API_URL}/auth/signup`, {
     method: "POST",
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, confirmPassword }),
   });
   return handleResponse(res, "Signup failed");
 }

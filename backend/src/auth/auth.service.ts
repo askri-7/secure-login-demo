@@ -10,7 +10,8 @@ import { RefreshDto } from './dto/refresh.dto';
 import { GithubProfile } from './github-oauth.service';
 import { GoogleProfile } from './google-oidc.service';
 import { AuditLogService } from './audit-log.service';
-
+import { EmailVerificationService } from '@/email/email-verification.service';
+import { EmailService } from '@/email/email.service';
 type AuthUser = Pick<User, 'id' | 'email' | 'name' | 'role'>;
 
 type AuthResponse = {
@@ -27,10 +28,12 @@ type AuthResponse = {
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
-    private audit: AuditLogService,
-  ) {}
+  private prisma: PrismaService,
+  private jwtService: JwtService,
+  private audit: AuditLogService,
+  private emailService: EmailService,
+  private emailVerification: EmailVerificationService,  
+) {}
 
   private toUserResponse(user: AuthUser) {
     return {
@@ -121,83 +124,151 @@ export class AuthService {
     });
     return { deleted: result.count };
   }
+async signUp(
+  signUpDto: SignUpDto,
+  ctx: { ip: string; userAgent?: string },
+): Promise<{ message: string }> {
+  const { name, email, password, confirmPassword } = signUpDto;
 
-  async signUp(
-    signUpDto: SignUpDto,
-    ctx: { ip: string; userAgent?: string },
-  ): Promise<AuthResponse> {
-    const { name, email, password } = signUpDto;
+  if (password !== confirmPassword) {
+    throw new BadRequestException('Passwords do not match');
+  }
 
-    const existingUser = await this.prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      await this.audit.log({
-        event: 'LOGIN_FAILURE',
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        metadata: { reason: 'email_already_exists', email },
-      });
-      throw new ConflictException('Email already in use');
-    }
+  const existingUser = await this.prisma.user.findUnique({ where: { email } });
+  if (existingUser) {
+    throw new ConflictException('Email already in use');
+  }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-    const user = await this.prisma.user.create({
-      data: { name, email, password: hashedPassword, role: 'USER' },
-    });
+  const hashedPassword = await bcrypt.hash(password, 12);
 
-    const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+  const user = await this.prisma.user.create({
+    data: {
+      name,
+      email,
+      password: hashedPassword,
+      role: 'USER',
+      emailVerified: false,
+    },
+  });
 
+  const verificationToken = await this.emailVerification.createToken(user.id, email);
+
+  const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+  const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+
+  try {
+    await this.emailService.sendVerificationEmail(email, name, verificationUrl);
+  } catch (err) {
     await this.audit.log({
       event: 'SIGNUP',
       userId: user.id,
       ip: ctx.ip,
       userAgent: ctx.userAgent,
-      metadata: { email: user.email },
+      metadata: {
+        email: user.email,
+        warning: 'email_failed',
+        error: err instanceof Error ? err.message : 'unknown',
+      },
     });
 
-    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+    return {
+      message: 'Account created, but email delivery failed. Please contact support or try signing up again later.',
+    };
   }
 
+  await this.audit.log({
+    event: 'SIGNUP',
+    userId: user.id,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+    metadata: { email: user.email },
+  });
+
+  return {
+    message: 'Account created. Please check your email to verify your account.',
+  };
+}
+
+
+
+
   async login(
-    loginDto: LoginDto,
-    ctx: { ip: string; userAgent?: string },
-  ): Promise<AuthResponse> {
-    const { email, password } = loginDto;
+  loginDto: LoginDto,
+  ctx: { ip: string; userAgent?: string },
+): Promise<AuthResponse> {
+  const { email, password } = loginDto;
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
+  const user = await this.prisma.user.findUnique({ where: { email } });
 
-    if (!user || !user.password) {
-      await this.audit.log({
-        event: 'LOGIN_FAILURE',
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        metadata: { reason: 'invalid_credentials', email },
-      });
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    const isPasswordMatched = await bcrypt.compare(password, user.password);
-    if (!isPasswordMatched) {
-      await this.audit.log({
-        event: 'LOGIN_FAILURE',
-        userId: user.id,
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        metadata: { reason: 'wrong_password', email },
-      });
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
-
+ 
+  if (user?.lockedUntil && user.lockedUntil > new Date()) {
+    const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
     await this.audit.log({
-      event: 'LOGIN_SUCCESS',
+      event: 'LOGIN_FAILURE',
       userId: user.id,
       ip: ctx.ip,
       userAgent: ctx.userAgent,
+      metadata: { reason: 'account_locked', email, remainingMinutes: mins },
     });
-
-    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+    throw new UnauthorizedException(
+      `Too many failed attempts. Account locked for ${mins} minute(s).`,
+    );
   }
+
+  
+
+  if (!user || !user.password) {
+    // TIMING ATTACK FIX: fake bcrypt to match real path duration
+    const dummyHash = '$2a$12$abcdefghijklmnopqrstuvwxycdefghijklmnopqrstu';
+    await bcrypt.compare(password, dummyHash);
+
+    await this.audit.log({
+      event: 'LOGIN_FAILURE',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { reason: 'invalid_credentials', email },
+    });
+    throw new UnauthorizedException('Invalid email or password');
+  }
+  // After lockout check, before password check:
+if (!user.emailVerified) {
+  await this.audit.log({
+    event: 'LOGIN_FAILURE',
+    userId: user.id,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+    metadata: { reason: 'email_not_verified', email },
+  });
+  throw new UnauthorizedException('Please verify your email before logging in.');
+}
+
+  const isPasswordMatched = await bcrypt.compare(password, user.password);
+  if (!isPasswordMatched) {
+    await this.handleFailedLogin(user, email, ctx);
+    throw new UnauthorizedException('Invalid email or password');
+  }
+
+
+  await this.prisma.user.update({
+    where: { id: user.id },
+    data: {
+      failedLoginAttempts: 0,
+      lastFailedLoginAt: null,
+      lockedUntil: null,
+    },
+  });
+
+  const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+
+  await this.audit.log({
+    event: 'LOGIN_SUCCESS',
+    userId: user.id,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+  });
+
+  return { accessToken, refreshToken, user: this.toUserResponse(user) };
+}
 
   async refresh(
     refreshDto: RefreshDto,
@@ -220,13 +291,29 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.refreshToken.update({
-        where: { id: matchedToken.id },
-        data: { revoked: true, revokedAt: new Date() },
-      });
 
-      const { accessToken, refreshToken } = await this.issueTokenPair(tx, user);
+    return this.prisma.$transaction(async (tx) => {
+    // 1 Only succeed if token is STILL active
+    const revokeResult = await tx.refreshToken.updateMany({
+      where: {
+        id: matchedToken.id,
+        revoked: false, 
+      },
+      data: {
+        revoked: true,
+        revokedAt: new Date(),
+      },
+    });
+
+    // 2  If no rows were updated, someone else won
+    if (revokeResult.count === 0) {
+      throw new UnauthorizedException(
+        'Refresh token already used. Please log in again.',
+      );
+    }
+
+  
+    const { accessToken, refreshToken } = await this.issueTokenPair(tx, user);
 
       await this.audit.log({
         event: 'TOKEN_REFRESH',
@@ -237,6 +324,9 @@ export class AuthService {
 
       return { accessToken, refreshToken, user: this.toUserResponse(user) };
     });
+
+   
+    
   }
 
   async logout(
@@ -266,86 +356,43 @@ export class AuthService {
     return { message: 'Logout successful' };
   }
 
-  private async handleOAuthLogin(
-    provider: string,
-    profile: {
-      providerUserId: string;
-      email: string | null;
-      emailVerified: boolean;
-      name: string;
-    },
-    ctx: { ip: string; userAgent?: string },
-  ): Promise<AuthResponse> {
-    const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
-      where: {
-        provider_providerUserId: {
-          provider,
-          providerUserId: profile.providerUserId,
-        },
+private async handleOAuthLogin(
+  provider: string,
+  profile: {
+    providerUserId: string;
+    email: string | null;
+    emailVerified: boolean;
+    name: string;
+  },
+  ctx: { ip: string; userAgent?: string },
+): Promise<AuthResponse> {
+  const existingOAuthAccount = await this.prisma.oAuthAccount.findUnique({
+    where: {
+      provider_providerUserId: {
+        provider,
+        providerUserId: profile.providerUserId,
       },
-      include: { user: true },
-    });
+    },
+    include: { user: true },
+  });
 
-    if (existingOAuthAccount) {
-      const { accessToken, refreshToken } = await this.issueTokenPair(
-        this.prisma,
-        existingOAuthAccount.user,
-      );
+  
+  if (existingOAuthAccount) {
+    const user = existingOAuthAccount.user;
 
-      await this.audit.log({
-        event: `OAUTH_${provider.toUpperCase()}_SUCCESS` as any,
-        userId: existingOAuthAccount.user.id,
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        metadata: { provider, providerUserId: profile.providerUserId, returning: true },
-      });
-
-      return {
-        accessToken,
-        refreshToken,
-        user: this.toUserResponse(existingOAuthAccount.user),
-      };
-    }
-
-    if (!profile.email || !profile.emailVerified) {
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
       await this.audit.log({
         event: `OAUTH_${provider.toUpperCase()}_FAILURE` as any,
+        userId: user.id,
         ip: ctx.ip,
         userAgent: ctx.userAgent,
-        metadata: { provider, reason: 'unverified_email' },
+        metadata: { reason: 'account_locked', provider, remainingMinutes: mins },
       });
-      throw new BadRequestException(
-        `Your ${provider} account needs a verified email address to sign in.`,
+      throw new UnauthorizedException(
+        `Too many failed attempts. Account locked for ${mins} minute(s).`,
       );
     }
-
-    const { user, linked } = await this.prisma.$transaction(async (tx) => {
-      const existingUser = await tx.user.findUnique({
-        where: { email: profile.email! },
-      });
-
-      const user =
-        existingUser ??
-        (await tx.user.create({
-          data: {
-            email: profile.email!,
-            name: profile.name,
-            password: null,
-            role: 'USER',
-          },
-        }));
-
-      await tx.oAuthAccount.create({
-        data: {
-          id: randomUUID(),
-          provider,
-          providerUserId: profile.providerUserId,
-          userId: user.id,
-        },
-      });
-
-      return { user, linked: !!existingUser };
-    });
 
     const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
 
@@ -354,11 +401,80 @@ export class AuthService {
       userId: user.id,
       ip: ctx.ip,
       userAgent: ctx.userAgent,
-      metadata: { provider, providerUserId: profile.providerUserId, returning: false, linked },
+      metadata: { provider, providerUserId: profile.providerUserId, returning: true },
     });
 
-    return { accessToken, refreshToken, user: this.toUserResponse(user) };
+    return {
+      accessToken,
+      refreshToken,
+      user: this.toUserResponse(user),
+    };
   }
+
+  // ── New OAuth user ──
+  if (!profile.email || !profile.emailVerified) {
+    await this.audit.log({
+      event: `OAUTH_${provider.toUpperCase()}_FAILURE` as any,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { provider, reason: 'unverified_email' },
+    });
+    throw new BadRequestException(
+      `Your ${provider} account needs a verified email address to sign in.`,
+    );
+  }
+
+  const { user, linked } = await this.prisma.$transaction(async (tx) => {
+    const existingUser = await tx.user.findUnique({
+      where: { email: profile.email! },
+    });
+
+    // FIX: Block OAuth linking if local account is locked
+    if (existingUser?.lockedUntil && existingUser.lockedUntil > new Date()) {
+      const mins = Math.ceil((existingUser.lockedUntil.getTime() - Date.now()) / 60000);
+      throw new UnauthorizedException(
+        `Too many failed attempts. Account locked for ${mins} minute(s).`,
+      );
+    }
+
+    const user =
+      existingUser ??
+      (await tx.user.create({
+        data: {
+          email: profile.email!,
+          name: profile.name,
+          password: null,
+          role: 'USER',
+          emailVerified: true,
+        },
+      }));
+
+    await tx.oAuthAccount.create({
+      data: {
+        id: randomUUID(),
+        provider,
+        providerUserId: profile.providerUserId,
+        userId: user.id,
+      },
+    });
+
+    return { user, linked: !!existingUser };
+  });
+
+  // If we get here, either a new user was created or an existing one was linked.
+  // Log the lockout failure separately since the transaction would have rolled back.
+  const { accessToken, refreshToken } = await this.issueTokenPair(this.prisma, user);
+
+  await this.audit.log({
+    event: `OAUTH_${provider.toUpperCase()}_SUCCESS` as any,
+    userId: user.id,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+    metadata: { provider, providerUserId: profile.providerUserId, returning: false, linked },
+  });
+
+  return { accessToken, refreshToken, user: this.toUserResponse(user) };
+}
 
   async loginWithGithub(
     profile: GithubProfile,
@@ -373,4 +489,69 @@ export class AuthService {
   ): Promise<AuthResponse> {
     return this.handleOAuthLogin('google', profile, ctx);
   }
+
+  
+
+
+  private getLoginDelay(attempts: number): number {
+    const delays = [0, 100, 300];
+    return delays[Math.min(attempts, delays.length -1)];
+  }
+
+  private async handleFailedLogin(
+    user:User,
+    email: string,
+    ctx: {ip: string; userAgent?: string},
+  ){
+    const now = new Date();
+    const oneMinuteAgo = new Date(now.getTime() - 60*1000);
+    const isNewWindow = !user.lastFailedLoginAt || user.lastFailedLoginAt < oneMinuteAgo;
+    const attempts = isNewWindow ? 1 : user.failedLoginAttempts + 1 ;
+
+    const lockedUntil = attempts >= 3 
+    ? new Date(now.getTime() +15 *60*1000)
+    : user.lockedUntil;
+
+    await  this.prisma.user.update({
+      where : {id : user.id },
+      data : {
+        failedLoginAttempts: attempts,
+        lastFailedLoginAt : now ,
+        lockedUntil,
+      },
+    });
+
+    await this.audit.log({
+      event: 'LOGIN_FAILURE',
+      userId: user.id , 
+      ip: ctx.ip, 
+      userAgent: ctx.userAgent,
+      metadata:{
+        reason : 'wrong_password',
+        email,
+        attempts: attempts,
+        locked: attempts >= 3,
+      }
+    });
+
+    const delayMs = this.getLoginDelay(attempts);
+    if(delayMs > 0)
+    {
+      await new Promise ((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+
+  // email verification 
+
+
+async createSession(user: AuthUser): Promise<AuthResponse> {
+  const tokens = await this.issueTokenPair(this.prisma, user);
+  return {
+    ...tokens,
+    user: this.toUserResponse(user),
+  };
+}
+
+  
 }

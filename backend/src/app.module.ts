@@ -10,24 +10,27 @@ import { APP_GUARD } from '@nestjs/core';
 import { HealthController } from './health/health.controller';
 import { HealthModule } from './health/health.module';
 import { CorrelationIdMiddleware } from '@/middleware/correlation-id.middleware';
+import { EmailController } from './email/email.controller';
+import { EmailModule } from './email/email.module';
+import { RedisThrottlerStorage } from './throttler/redis-throttler-storage.service';
 
 @Module({
+  
   imports: [
-
+    EmailModule,
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     UsersModule,
-    ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60000,
-        limit: 100,
-      },
-    ]),
+     ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60000, limit: 100 }],
+      storage: new RedisThrottlerStorage(),  // ← ADD
+    }),
     HealthModule,
+   
+    EmailModule,
   ],
-  controllers: [AppController, HealthController],
+  controllers: [AppController, HealthController, EmailController],
   providers: [
     AppService,
     {

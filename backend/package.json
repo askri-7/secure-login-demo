@@ -34,8 +34,10 @@
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "dotenv": "^17.4.2",
+    "dotenv": "^16.6.1",
     "helmet": "^8.3.0",
+    "ioredis": "^6.0.0",
+    "nodemailer": "^9.0.5",
     "openid-client": "^6.8.4",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -53,6 +55,7 @@
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",
     "@types/pg": "^8.20.4",
     "@types/supertest": "^7.0.0",
@@ -88,6 +91,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1"
+    }
   }
 }

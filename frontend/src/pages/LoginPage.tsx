@@ -4,11 +4,11 @@ import { login } from "../lib/api";
 import OAuthButtons from "./components/OAuthButtons";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -16,8 +16,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // login() no longer returns a token — the backend sets it as an
-      // httpOnly cookie automatically. Nothing to store here.
       await login(email, password);
       navigate("/");
     } catch (err) {
@@ -27,12 +25,14 @@ export default function LoginPage() {
     }
   }
 
+  const isUnverifiedError = error?.toLowerCase().includes("verify your email");
+
   return (
     <div className="auth-page">
       <form className="auth-card" onSubmit={handleSubmit}>
         <p className="auth-eyebrow">Authenticate</p>
         <h1>Sign in</h1>
-        <p className="auth-subtitle">enter accoutn credentials</p>
+        <p className="auth-subtitle">Enter your account credentials</p>
 
         <label htmlFor="email">Email</label>
         <input
@@ -55,15 +55,34 @@ export default function LoginPage() {
           autoComplete="current-password"
         />
 
-        {error && <p className="auth-error">{error}</p>}
+        {error && (
+          <p
+            className="auth-error"
+            style={isUnverifiedError ? { color: "#f59e0b" } : undefined}
+          >
+            {error}
+            {isUnverifiedError && (
+              <span
+                style={{
+                  display: "block",
+                  marginTop: "0.35rem",
+                  fontSize: "0.78rem",
+                  opacity: 0.85,
+                }}
+              >
+                Check your inbox for the verification link.
+              </span>
+            )}
+          </p>
+        )}
 
         <button type="submit" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
-        
+
         <p className="oauth-divider">or</p>
         <OAuthButtons />
-      
+
         <p className="auth-switch">
           No account yet? <Link to="/signup">Sign up</Link>
         </p>
