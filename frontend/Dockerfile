@@ -1,5 +1,5 @@
 
-ARG NODE_VERSION=22-alpine
+ARG NODE_VERSION=24-alpine
 
 # ---------------------------------------------------------------------------
 # 1) build: install deps and produce the static production bundle.

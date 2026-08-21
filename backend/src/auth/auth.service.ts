@@ -153,8 +153,8 @@ async signUp(
 
   const verificationToken = await this.emailVerification.createToken(user.id, email);
 
-  const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-  const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+  const baseUrl = process.env.API_URL ?? 'http://localhost:3000';
+  const verificationUrl = `${baseUrl}/auth/verify-email?token=${verificationToken}`;
 
   try {
     await this.emailService.sendVerificationEmail(email, name, verificationUrl);

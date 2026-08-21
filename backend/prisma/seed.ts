@@ -18,9 +18,12 @@ async function main() {
     return;
   }
 
-  const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
+  const existing = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  });
+
   if (existing) {
-    console.log(`Admin ${adminEmail} already exists`);
+    console.log(`Admin ${adminEmail} already exists, skipping.`);
     return;
   }
 
@@ -30,6 +33,7 @@ async function main() {
       name: "System Admin",
       password: await bcrypt.hash(adminPassword, 12),
       role: UserRole.ADMIN,
+      emailVerified: true,
     },
   });
 
@@ -42,7 +46,7 @@ main()
     await pool.end();
   })
   .catch(async (e) => {
-    console.error(e);
+    console.error("Seed failed:", e);
     await prisma.$disconnect();
     await pool.end();
     process.exit(1);
