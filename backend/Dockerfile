@@ -41,21 +41,22 @@ WORKDIR /app
 RUN apk add --no-cache openssl ca-certificates \
     && addgroup -S app && adduser -S app -G app
 
-ENV NODE_ENV=production
+ENV NODE_ENV=dev
 
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/dist ./dist
 COPY --from=build --chown=app:app /app/prisma ./prisma
 COPY --from=build --chown=app:app /app/package.json ./package.json
 COPY --from=build --chown=app:app /app/prisma.config.ts ./prisma.config.ts
+COPY --from=build --chown=app:app /app/src/generated/prisma ./src/generated/prisma
 
-# NEW: Install Prisma CLI globally so it's available after prune
+#  Install Prisma CLI globally so it's available after prune
 RUN npm install -g prisma
 
 # NEW: Regenerate Prisma client in the runtime image
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" prisma generate
 
-# NEW: Copy entrypoint
+#  Copy entrypoint
 COPY --chown=app:app docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
