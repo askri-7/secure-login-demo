@@ -155,7 +155,7 @@ jobs:
           docker push ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           docker push ${{ env.FRONTEND_IMAGE }}:latest
 
- 
+ ###
     # ============================================================
   # 3. DEPLOY TO VM
   # ============================================================
