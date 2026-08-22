@@ -6,34 +6,34 @@ import helmet from 'helmet';
 import type { Express } from 'express';
 import { AllExceptionsFilter } from '@/filters/all-exceptions.filter';
 import { json, urlencoded } from 'express';
-// import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
+import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
 
 dotenv.config();
 
 async function bootstrap() {
-  // ═══════════════════════════════════════════
-  // KEY VAULT LOADER — uncomment when available
-  // ═══════════════════════════════════════════
-  /*
   const vaultSecrets = await loadSecretsFromKeyVault();
-  
-  if (vaultSecrets.DATABASE_URL_PASSWORD && process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = process.env.DATABASE_URL.replace(
-      '__VAULT__',
-      vaultSecrets.DATABASE_URL_PASSWORD,
-    );
+
+  // ── Construct DATABASE_URL from Key Vault + env vars ──
+  const dbHost = process.env.DB_HOST || 'localhost';
+  const dbPort = process.env.DB_PORT || '5432';
+  const dbName = process.env.DB_NAME || 'authdb';
+  const dbUser = vaultSecrets.DB_USER;
+  const dbPass = vaultSecrets.DATABASE_URL_PASSWORD;
+
+  if (dbUser && dbPass) {
+    process.env.DATABASE_URL = `postgresql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
+    console.log('DATABASE_URL constructed from Key Vault secrets');
   }
 
+  // ── Apply remaining secrets to process.env ──
   Object.entries(vaultSecrets).forEach(([key, value]) => {
-    if (key !== 'DATABASE_URL_PASSWORD') {
+    if (key !== 'DATABASE_URL_PASSWORD' && key !== 'DB_USER') {
       process.env[key] = value;
     }
   });
-  */
-  // ═══════════════════════════════════════════
 
   const app = await NestFactory.create(AppModule);
-  
+
   const expressApp = app.getHttpAdapter().getInstance() as Express;
   expressApp.set('trust proxy', [
     'loopback',
