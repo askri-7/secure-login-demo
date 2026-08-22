@@ -155,7 +155,8 @@ jobs:
           docker push ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           docker push ${{ env.FRONTEND_IMAGE }}:latest
 
-  # ============================================================
+ 
+    # ============================================================
   # 3. DEPLOY TO VM
   # ============================================================
 
@@ -177,7 +178,7 @@ jobs:
             set -e
 
             APP_DIR="/opt/secure-login-demo"
-            COMPOSE="docker compose -f $${APP_DIR}/docker-compose.prod.yml"
+            COMPOSE="docker compose -f ${APP_DIR}/docker-compose.prod.yml"
 
             echo "[+] Pulling latest images..."
             $COMPOSE pull
