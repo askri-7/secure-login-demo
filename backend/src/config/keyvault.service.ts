@@ -2,11 +2,11 @@ import { SecretClient } from '@azure/keyvault-secrets';
 import { DefaultAzureCredential } from '@azure/identity';
 
 const SECRET_MAP: Record<string, string> = {
-  'db-password': 'DATABASE_URL_PASSWORD',
   'jwt-secret': 'JWT_SECRET',
-  'admin-password': 'ADMIN_PASSWORD',
+  'database_url' : 'DATABASE_URL',
   'github-client-secret': 'GITHUB_CLIENT_SECRET',
   'google-client-secret': 'GOOGLE_CLIENT_SECRET',
+  'smtp-pass': 'SMTP_PASS',
 };
 
 export async function loadSecretsFromKeyVault(): Promise<Record<string, string>> {
