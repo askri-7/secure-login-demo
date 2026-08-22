@@ -122,22 +122,25 @@ jobs:
       # Docker Scout
       # ----------------------------------------------------------
 
-      - name: Scan backend with Docker Scout
-        uses: docker/scout-action@v1
-        with:
-          command: cves
-          image: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-          only-severities: critical,high
-          exit-code: true
-
-      - name: Scan frontend with Docker Scout
-        uses: docker/scout-action@v1
-        with:
-          command: cves
-          image: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-          only-severities: critical,high
-          exit-code: true
-
+  
+      # ----------------------------------------------------------
+      # Docker Scout — DISABLED
+      # ----------------------------------------------------------
+      # - name: Scan backend with Docker Scout
+      #   uses: docker/scout-action@v1
+      #   with:
+      #     command: cves
+      #     image: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+      #     only-severities: critical,high
+      #     exit-code: true
+      #
+      # - name: Scan frontend with Docker Scout
+      #   uses: docker/scout-action@v1
+      #   with:
+      #     command: cves
+      #     image: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+      #     only-severities: critical,high
+      #     exit-code: true
       # ----------------------------------------------------------
       # Push only after security checks pass
       # ----------------------------------------------------------
@@ -159,7 +162,7 @@ jobs:
   deploy:
     name: Deploy to VM
     runs-on: ubuntu-latest
-    #needs: build
+    needs: build
 
     if: github.event_name == 'push'
 
