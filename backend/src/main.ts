@@ -19,7 +19,7 @@ async function bootstrap() {
   const dbHost = process.env.DB_HOST || 'localhost';
   const dbPort = process.env.DB_PORT || '5432';
   const dbName = process.env.DB_NAME || 'authdb';
-  const dbUser = vaultSecrets.DB_USER;
+  const dbUser = process.env.DB_USER;
   const dbPass = vaultSecrets.DATABASE_URL_PASSWORD;
 
   if (dbUser && dbPass) {
