@@ -11,9 +11,11 @@ import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
 dotenv.config();
 
 async function bootstrap() {
+
+  
   const vaultSecrets = await loadSecretsFromKeyVault();
 
-  // ── Construct DATABASE_URL from Key Vault + env vars ──
+  // Construct DATABASE_URL from Key Vault + env vars ──
   const dbHost = process.env.DB_HOST || 'localhost';
   const dbPort = process.env.DB_PORT || '5432';
   const dbName = process.env.DB_NAME || 'authdb';

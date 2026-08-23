@@ -10,6 +10,13 @@ import { Prisma } from '@/generated/prisma/client';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
+  // Computed once at startup, not on every exception: no NODE_ENV — a
+  // deployment is treated as "production-like" if it's actually fronted
+  // by HTTPS, since that's the config that matters (raw stack traces
+  // shouldn't leak over a real public URL, secure or not is what decides
+  // that, not a label).
+  private readonly isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -48,7 +55,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
     // ── Everything else ──
     else if (exception instanceof Error) {
-      message = process.env.NODE_ENV === 'production'
+      message = this.isSecureConnection
         ? 'Internal server error'
         : exception.message;
     }
