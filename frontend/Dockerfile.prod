@@ -20,10 +20,23 @@ FROM nginx:1.27-alpine AS runtime
 ENV BACKEND_HOST=backend
 ENV BACKEND_PORT=3000
 
-COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+# Same Dockerfile builds both the local dev image (docker-compose.yml) and
+# the production image CI pushes to Docker Hub (docker-compose.prod.yml) —
+# they need different nginx configs (dev: plain HTTP; prod: HTTPS redirect
+# + real cert paths), so which one gets baked in is a build arg, not
+# hardcoded. Defaults to the dev template so `docker compose build` locally
+# needs no flags; CI overrides it — see pipeline.yml.
+ARG NGINX_TEMPLATE=default.conf.template
+
+# FIX: was "default.conf.prod.template". nginx's entrypoint strips only the
+# trailing ".template" before writing to /etc/nginx/conf.d/, so that name
+# produced "default.conf.prod" — which /etc/nginx/nginx.conf's
+# `include conf.d/*.conf;` never picks up. Result: nginx boots with zero
+# server blocks, no port 80, no port 443, no redirect — silently.
+COPY nginx/${NGINX_TEMPLATE} /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 443
+EXPOSE 80 443
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://127.0.0.1/ > /dev/null || exit 1
+CMD wget -qO- http://127.0.0.1/ > /dev/null || exit 1

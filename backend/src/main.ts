@@ -6,13 +6,13 @@ import helmet from 'helmet';
 import type { Express } from 'express';
 import { AllExceptionsFilter } from '@/filters/all-exceptions.filter';
 import { json, urlencoded } from 'express';
-//import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
+import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
 
 dotenv.config();
 
 async function bootstrap() {
 
-  /*
+  
   const vaultSecrets = await loadSecretsFromKeyVault();
 
   // Construct DATABASE_URL from Key Vault + env vars ──
@@ -33,7 +33,7 @@ async function bootstrap() {
       process.env[key] = value;
     }
   });
-*/
+
   const app = await NestFactory.create(AppModule);
 
   const expressApp = app.getHttpAdapter().getInstance() as Express;
