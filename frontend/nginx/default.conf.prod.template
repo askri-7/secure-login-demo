@@ -12,8 +12,9 @@ server {
     listen [::]:443 ssl http2;
     server_name _;
 
-    ssl_certificate     /etc/nginx/ssl/cert.pem;
-    ssl_certificate_key /etc/nginx/ssl/key.pem;
+    # FIXED: Use the Let's Encrypt paths from the mounted volume
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
 
     # Modern TLS
     ssl_protocols TLSv1.2 TLSv1.3;
