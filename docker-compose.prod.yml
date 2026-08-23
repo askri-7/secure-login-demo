@@ -3,7 +3,7 @@
 
 services:
   backend:
-    image: ${DOCKERHUB_USERNAME}/secure-login-demo-backend:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/secure-login-demo-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - ./backend.env
@@ -35,13 +35,12 @@ services:
         max-file: "3"
 
   frontend:
-    image: ${DOCKERHUB_USERNAME}/secure-login-demo-frontend:${IMAGE_TAG}
+    image: ${DOCKERHUB_USERNAME}/secure-login-demo-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       BACKEND_HOST: backend
       BACKEND_PORT: "3000"
-      # Needed by nginx's envsubst templating (default.conf.prod.template
-      # uses ${DOMAIN_NAME} for the cert path and server_name).
+    
       DOMAIN_NAME: ${DOMAIN_NAME}
     depends_on:
       - backend
