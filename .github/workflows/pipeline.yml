@@ -135,11 +135,6 @@ jobs:
   # ============================================================
 
   deploy:
-    name: Deploy to VM
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push'
-    steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
@@ -148,33 +143,27 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             set -e
-            echo "[+] Syncing config from git..."
-            git fetch origin
-            git reset --hard origin/behind
-            COMPOSE="docker compose -f ${APP_DIR}/docker-compose.prod.yml"
-            $COMPOSE pull
-            $COMPOSE up -d --remove-orphans
             APP_DIR="/opt/secure-login-demo"
+            cd "$APP_DIR"
             
-            cd $APP_DIR
-
-            # FIX: export the variables your compose file actually uses
             export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
             export IMAGE_TAG="${{ github.sha }}"
-
+            
+            COMPOSE="docker compose -f ${APP_DIR}/docker-compose.prod.yml"
+            
             echo "[+] Pulling images for commit ${IMAGE_TAG}..."
-            docker compose -f docker-compose.prod.yml pull
-
+            $COMPOSE pull
+            
             echo "[+] Restarting stack..."
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-
+            $COMPOSE up -d --remove-orphans
+            
             echo "[+] Pruning old images..."
             docker image prune -a -f --filter "until=168h"
-
+            
             echo "[+] Waiting for health checks..."
             sleep 15
-
+            
             echo "[+] Status:"
-            docker compose -f docker-compose.prod.yml ps
-
+            $COMPOSE ps
+            
             echo "[+] Deployment complete."

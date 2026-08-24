@@ -30,28 +30,30 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-  # One-shot: gets the FIRST certificate before nginx ever needs to load one.
+
+  # One-shot: creates a self-signed placeholder certificate so nginx can boot
+  # on the very first run. Does NOT block frontend startup.
   certbot-init:
     image: certbot/certbot:latest
     restart: "no"
     environment:
       DOMAIN_NAME: ${DOMAIN_NAME}
-      OWNER_EMAIL: ${OWNER_EMAIL}
-    ports:
-      - "80:80"
     volumes:
       - letsencrypt:/etc/letsencrypt
-      - certbot-www:/var/www/certbot
     entrypoint: >
       sh -c '
+      set -e;
+      mkdir -p /etc/letsencrypt/live/$${DOMAIN_NAME};
       if [ -f "/etc/letsencrypt/live/$${DOMAIN_NAME}/fullchain.pem" ]; then
-        echo "[certbot-init] cert already exists, skipping.";
+        echo "[certbot-init] Certificate already exists.";
         exit 0;
       fi;
-      echo "[certbot-init] no cert found, requesting one via standalone HTTP-01...";
-      certbot certonly --standalone --preferred-challenges http
-        -d "$${DOMAIN_NAME}"
-        --email "$${OWNER_EMAIL}" --agree-tos --no-eff-email --non-interactive
+      echo "[certbot-init] Creating self-signed placeholder certificate...";
+      openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+        -keyout /etc/letsencrypt/live/$${DOMAIN_NAME}/privkey.pem \
+        -out /etc/letsencrypt/live/$${DOMAIN_NAME}/fullchain.pem \
+        -subj "/CN=$${DOMAIN_NAME}";
+      echo "[certbot-init] Placeholder created.";
       '
 
   frontend:
@@ -62,17 +64,14 @@ services:
       BACKEND_PORT: "3000"
       DOMAIN_NAME: ${DOMAIN_NAME}
     depends_on:
-      certbot-init:
-        condition: service_completed_successfully
-      backend:
-        condition: service_started
+      - backend
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./frontend/nginx/default.conf.prod.template:/etc/nginx/templates/default.conf.template:ro
       - letsencrypt:/etc/letsencrypt:ro
-      - certbot-www:/var/www/certbot:ro
+      - certbot-www:/var/www/certbot
     deploy:
       resources:
         limits:
@@ -83,24 +82,20 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  
+  # Renewal-only daemon. Initial certificate is obtained by cloud-init.
   certbot:
     image: certbot/certbot:latest
     restart: unless-stopped
-    depends_on:
-      certbot-init:
-        condition: service_completed_successfully
     volumes:
       - letsencrypt:/etc/letsencrypt
       - certbot-www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done;'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
 
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     env_file:
       - ./db.env
-   
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -122,7 +117,6 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -141,7 +135,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
- 
 volumes:
   postgres_data:
   redis_data:
