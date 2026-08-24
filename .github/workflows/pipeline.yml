@@ -184,18 +184,18 @@ jobs:
             export IMAGE_TAG="${{ github.sha }}"
 
             echo "[+] Pulling images for commit ${IMAGE_TAG}..."
-            sudo docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml pull
 
             echo "[+] Restarting stack..."
-            sudo docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
             echo "[+] Pruning old images..."
-            sudo docker image prune -a -f --filter "until=168h"
+            docker image prune -a -f --filter "until=168h"
 
             echo "[+] Waiting for health checks..."
             sleep 15
 
             echo "[+] Status:"
-            sudo docker compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.prod.yml ps
 
             echo "[+] Deployment complete."

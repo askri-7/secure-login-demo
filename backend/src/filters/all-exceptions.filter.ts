@@ -10,7 +10,7 @@ import { Prisma } from '@/generated/prisma/client';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  // Computed once at startup, not on every exception: no NODE_ENV — a
+  // Computed once at startup, not on every exception:  — a
   // deployment is treated as "production-like" if it's actually fronted
   // by HTTPS, since that's the config that matters (raw stack traces
   // shouldn't leak over a real public URL, secure or not is what decides
