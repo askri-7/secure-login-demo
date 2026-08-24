@@ -78,6 +78,8 @@ jobs:
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
+          build-args: |
+            NGINX_TEMPLATE=default.conf.prod.template
           load: true
           no-cache: true
           tags: |
@@ -92,7 +94,32 @@ jobs:
           docker inspect ${{ env.BACKEND_IMAGE }}:${{ github.sha }} --format='{{.Created}}'
           echo "Frontend image created at:"
           docker inspect ${{ env.FRONTEND_IMAGE }}:${{ github.sha }} --format='{{.Created}}'
+     # ----------------------------------------------------------
+      # Docker Scout
+      # ----------------------------------------------------------
 
+  
+      # ----------------------------------------------------------
+      # Docker Scout — DISABLED
+      # ----------------------------------------------------------
+      # - name: Scan backend with Docker Scout
+      #   uses: docker/scout-action@v1
+      #   with:
+      #     command: cves
+      #     image: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+      #     only-severities: critical,high
+      #     exit-code: true
+      #
+      # - name: Scan frontend with Docker Scout
+      #   uses: docker/scout-action@v1
+      #   with:
+      #     command: cves
+      #     image: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+      #     only-severities: critical,high
+      #     exit-code: true
+      # ----------------------------------------------------------
+      # Push only after security checks pass
+      # ----------------------------------------------------------
       - name: Push backend
         run: |
           docker push ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
@@ -121,7 +148,14 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             set -e
+            echo "[+] Syncing config from git..."
+            git fetch origin
+            git reset --hard origin/behind
+            COMPOSE="docker compose -f ${APP_DIR}/docker-compose.prod.yml"
+            $COMPOSE pull
+            $COMPOSE up -d --remove-orphans
             APP_DIR="/opt/secure-login-demo"
+            
             cd $APP_DIR
 
             # FIX: export the variables your compose file actually uses

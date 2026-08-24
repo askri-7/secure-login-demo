@@ -25,8 +25,14 @@ ARG NGINX_TEMPLATE=default.conf.prod.template
 
 COPY nginx/${NGINX_TEMPLATE} /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY docker-entrypoint-wrapper.sh /docker-entrypoint-wrapper.sh
+RUN chmod +x /docker-entrypoint-wrapper.sh
+ENTRYPOINT ["/docker-entrypoint-wrapper.sh"]
+
 
 EXPOSE 80 443
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+
+CMD ["nginx", "-g", "daemon off;"]
 CMD wget -qO- http://127.0.0.1/ > /dev/null || exit 1
