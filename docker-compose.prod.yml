@@ -20,12 +20,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # FIX: deploy.resources.limits is a Swarm-only construct and is silently
-    # ignored by plain `docker compose up` (no --compatibility flag anywhere
-    # in cloud-init or the deploy workflow). Use the direct keys instead —
-    # these apply without any flag.
-    mem_limit: 512M
-    cpus: 1.0
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
     logging:
       driver: json-file
       options:
@@ -65,20 +64,18 @@ services:
       BACKEND_PORT: "3000"
       DOMAIN_NAME: ${DOMAIN_NAME}
     depends_on:
-      backend:
-        condition: service_started
-      # FIX: without this, frontend can race certbot-init on a fresh volume
-      # and crash on missing cert files, only recovering via restart-policy
-      # crash-looping once the placeholder shows up. Wait for it explicitly.
-      certbot-init:
-        condition: service_completed_successfully
+      - backend
     ports:
       - "80:80"
       - "443:443"
     volumes:
+      
       - letsencrypt:/etc/letsencrypt:ro
       - certbot-www:/var/www/certbot
-    mem_limit: 128M
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     logging:
       driver: json-file
       options:
@@ -92,24 +89,7 @@ services:
     volumes:
       - letsencrypt:/etc/letsencrypt
       - certbot-www:/var/www/certbot
-      # FIX: needed so the deploy-hook below can reload nginx after a
-      # successful renewal. Trade-off: this grants the certbot container
-      # effective root on the host (docker.sock access is equivalent to
-      # root). Acceptable here since it's a small trusted stack, but worth
-      # knowing — don't copy this into a multi-tenant or higher-stakes setup
-      # without a narrower alternative (e.g. a small proxy that only allows
-      # "exec nginx -s reload" on a fixed container name).
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    entrypoint: >
-      sh -c '
-      apk add --no-cache docker-cli >/dev/null 2>&1;
-      trap exit TERM;
-      while :; do
-        certbot renew --webroot -w /var/www/certbot --quiet \
-          --deploy-hook "docker exec $$(docker ps -qf name=secure-login-demo-frontend) nginx -s reload";
-        sleep 12h & wait $${!};
-      done;
-      '
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
 
   db:
     image: postgres:16-alpine
@@ -124,7 +104,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    mem_limit: 256M
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     logging:
       driver: json-file
       options:
@@ -142,7 +125,10 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    mem_limit: 256M
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     logging:
       driver: json-file
       options:
