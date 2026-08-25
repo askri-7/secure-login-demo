@@ -11,28 +11,42 @@ import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
 dotenv.config();
 
 async function bootstrap() {
-
-  
+ //  Load all secrets from Key Vault into process.env FIRST
   const vaultSecrets = await loadSecretsFromKeyVault();
+  Object.entries(vaultSecrets).forEach(([key, value]) => {
+    process.env[key] = value;
+  });
 
-  // Construct DATABASE_URL from Key Vault + env vars ──
-  const dbHost = process.env.DB_HOST || 'localhost';
+  //  Construct DATABASE_URL
+  const dbHost = process.env.DB_HOST || 'db';
   const dbPort = process.env.DB_PORT || '5432';
   const dbName = process.env.DB_NAME || 'authdb';
-  const dbUser = vaultSecrets.DB_USER;
-  const dbPass = vaultSecrets.DATABASE_URL_PASSWORD;
+  const dbUser = process.env.DB_USER;              
+  const dbPass = process.env.DATABASE_URL_PASSWORD; 
 
   if (dbUser && dbPass) {
     process.env.DATABASE_URL = `postgresql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
     console.log('DATABASE_URL constructed from Key Vault secrets');
+  } else {
+    throw new Error(
+      `Missing DB credentials: DB_USER=${dbUser ? 'set' : 'MISSING'}, DATABASE_URL_PASSWORD=${dbPass ? 'set' : 'MISSING'}`
+    );
   }
 
-  // ── Apply remaining secrets to process.env ──
-  Object.entries(vaultSecrets).forEach(([key, value]) => {
-    if (key !== 'DATABASE_URL_PASSWORD' && key !== 'DB_USER') {
-      process.env[key] = value;
-    }
-  });
+  //  Run migrations and seeding
+
+  if (process.env.RUN_MIGRATIONS === 'true') {
+    const { execSync } = await import('child_process');
+
+    console.log('⏳ Running Prisma migrations...');
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+
+    console.log('🌱 Seeding database...');
+    execSync('npx prisma db seed', { stdio: 'inherit' });
+  }
+
+  
+
 
   const app = await NestFactory.create(AppModule);
 

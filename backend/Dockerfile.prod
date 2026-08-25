@@ -44,11 +44,6 @@ COPY --from=build --chown=app:app /app/src/generated/prisma ./src/generated/pris
 
 RUN npm install -g prisma tsx
 
-# Production entrypoint + secret loader
-COPY --chown=app:app docker-entrypoint.prod.sh ./docker-entrypoint.prod.sh
-
-RUN chmod +x docker-entrypoint.prod.sh
-
 USER app
 
 EXPOSE 3000

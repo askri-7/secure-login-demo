@@ -9,9 +9,6 @@ services:
       - ./backend.env
     environment:
       PORT: "3000"
-      # Compose-network topology constants — the app builds DATABASE_URL
-      # from these + the Key Vault-sourced DB_USER/password, it no longer
-      # needs a full DATABASE_URL handed to it via backend.env.
       DB_HOST: db
       DB_PORT: "5432"
       REDIS_HOST: redis
@@ -34,14 +31,37 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # One-shot: creates a self-signed placeholder certificate so nginx can boot
+  # on the very first run. Does NOT block frontend startup.
+  certbot-init:
+    image: certbot/certbot:latest
+    restart: "no"
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME}
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+    entrypoint: >
+      sh -c '
+      set -e;
+      mkdir -p /etc/letsencrypt/live/$${DOMAIN_NAME};
+      if [ -f "/etc/letsencrypt/live/$${DOMAIN_NAME}/fullchain.pem" ]; then
+        echo "[certbot-init] Certificate already exists.";
+        exit 0;
+      fi;
+      echo "[certbot-init] Creating self-signed placeholder certificate...";
+      openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+        -keyout /etc/letsencrypt/live/$${DOMAIN_NAME}/privkey.pem \
+        -out /etc/letsencrypt/live/$${DOMAIN_NAME}/fullchain.pem \
+        -subj "/CN=$${DOMAIN_NAME}";
+      echo "[certbot-init] Placeholder created.";
+      '
+
   frontend:
     image: ${DOCKERHUB_USERNAME}/secure-login-demo-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       BACKEND_HOST: backend
       BACKEND_PORT: "3000"
-      # Needed by nginx's envsubst templating (default.conf.prod.template
-      # uses ${DOMAIN_NAME} for the cert path and server_name).
       DOMAIN_NAME: ${DOMAIN_NAME}
     depends_on:
       - backend
@@ -49,16 +69,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # FIX: this file lives at frontend/nginx/default.conf.prod.template in
-      # the repo, not at the repo root — the old path silently mounted
-      # nothing and nginx fell back to the dev (HTTP-only) template baked
-      # into the image.
-      - ./frontend/nginx/default.conf.prod.template:/etc/nginx/templates/default.conf.template:ro
+      
       - letsencrypt:/etc/letsencrypt:ro
-      # FIX: frontend needs to *serve* the ACME challenge files certbot
-      # writes here (webroot method) — it was never mounted before, so
-      # HTTP-01 validation had no way to succeed.
-      - certbot-www:/var/www/certbot:ro
+      - certbot-www:/var/www/certbot
     deploy:
       resources:
         limits:
@@ -69,12 +82,20 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Renewal-only daemon. Initial certificate is obtained by cloud-init.
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     env_file:
       - ./db.env
-    # NO ports exposed — only backend can reach it via Docker network
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -96,7 +117,6 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # NO ports exposed
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
@@ -114,14 +134,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-  certbot:
-    image: certbot/certbot:latest
-    restart: unless-stopped
-    volumes:
-      - letsencrypt:/etc/letsencrypt
-      - certbot-www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
   postgres_data:
