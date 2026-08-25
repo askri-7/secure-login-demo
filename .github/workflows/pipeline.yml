@@ -130,8 +130,7 @@ jobs:
   # ============================================================
   # 3. DEPLOY TO VM
   # ============================================================
-
-  deploy:
+deploy:
     name: Deploy to VM
     runs-on: ubuntu-latest
     needs: build
@@ -147,25 +146,46 @@ jobs:
             set -e
             APP_DIR="/opt/secure-login-demo"
             cd "$APP_DIR"
-            
+
             export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
             export IMAGE_TAG="${{ github.sha }}"
-            
             COMPOSE="docker compose -f ${APP_DIR}/docker-compose.prod.yml"
-            
-            echo "[+] Pulling images for commit ${IMAGE_TAG}..."
-            $COMPOSE pull
-            
-            echo "[+] Restarting stack..."
-            $COMPOSE up -d --remove-orphans
-            
+
+            # FIX: persist the tag to .env on disk, not just this SSH session's
+            # shell. Otherwise a later manual "docker compose up -d" run by
+            # anyone on the VM silently falls back to whatever stale tag is
+            # still written in .env.
+            echo "[+] Recording image tag ${IMAGE_TAG} in .env..."
+            sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" "$APP_DIR/.env"
+
+            # FIX: scope pull/up to the app services only. Without this,
+            # every push also touches db/redis/certbot/certbot-init — if any
+            # of those use a floating upstream tag, a routine app deploy
+            # could silently recreate the database container.
+            echo "[+] Pulling app images for commit ${IMAGE_TAG}..."
+            $COMPOSE pull backend frontend
+
+            echo "[+] Restarting app services..."
+            $COMPOSE up -d --remove-orphans backend frontend
+
             echo "[+] Pruning old images..."
             docker image prune -a -f --filter "until=168h"
-            
+
             echo "[+] Waiting for health checks..."
             sleep 15
-            
+
+            # FIX: actually verify the deploy instead of just printing status.
+            # A crash-looping container previously still reported success.
+            echo "[+] Verifying backend and frontend are running..."
+            for svc in backend frontend; do
+              STATE=$($COMPOSE ps --status running --services)
+              if ! echo "$STATE" | grep -qx "$svc"; then
+                echo "[!] $svc is not running after deploy"
+                $COMPOSE logs --tail 50 "$svc"
+                exit 1
+              fi
+            done
+
             echo "[+] Status:"
             $COMPOSE ps
-            
             echo "[+] Deployment complete."
