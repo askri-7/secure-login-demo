@@ -3,6 +3,7 @@ import { Pool, PoolConfig } from 'pg';
 
 const POSTGRES_SCOPE = 'https://ossrdbms-aad.database.windows.net/.default';
 const TOKEN_REFRESH_SKEW_MS = 60_000;
+const TOKEN_BACKGROUND_REFRESH_MS = 45 * 60 * 1000;
 
 export type DatabaseAuthMode = 'entra' | 'password';
 
@@ -60,18 +61,31 @@ class EntraTokenProvider {
       return this.cachedToken.token;
     }
 
-    if (!this.refreshPromise) {
-      this.refreshPromise = this.refreshToken();
-    }
-
-    try {
-      return await this.refreshPromise;
-    } finally {
-      this.refreshPromise = undefined;
-    }
+    return this.refreshToken();
   }
 
-  private async refreshToken(): Promise<string> {
+  startBackgroundRefresh(): NodeJS.Timeout {
+    const timer = setInterval(() => {
+      void this.refreshToken().catch(() => {
+        // The next connection attempt retries token acquisition without logging the token.
+      });
+    }, TOKEN_BACKGROUND_REFRESH_MS);
+
+    timer.unref();
+    return timer;
+  }
+
+  private refreshToken(): Promise<string> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.fetchToken().finally(() => {
+        this.refreshPromise = undefined;
+      });
+    }
+
+    return this.refreshPromise;
+  }
+
+  private async fetchToken(): Promise<string> {
     const token = await this.credential.getToken(POSTGRES_SCOPE);
     if (!token) {
       throw new Error(
@@ -92,6 +106,7 @@ export function createDatabasePool(): Pool {
   }
 
   const tokenProvider = new EntraTokenProvider();
+  tokenProvider.startBackgroundRefresh();
   const config: PoolConfig = {
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
