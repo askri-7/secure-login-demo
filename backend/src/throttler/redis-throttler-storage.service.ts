@@ -15,20 +15,19 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
   }
 
   async increment(key: string, ttl: number): Promise<ThrottlerStorageRecord> {
-  const multi = this.redis.multi();
-  multi.incr(key);
-  multi.pexpire(key, ttl);
-  const results = await multi.exec();
-  
-  const totalHits = results?.[0]?.[1] as number ?? 1;
-  const timeToExpire = await this.redis.pttl(key);
-  
-return {
-  totalHits,
-  timeToExpire,
-  isBlocked: false,
-  timeToBlockExpire: 0,
-};
-}
-    
+    const multi = this.redis.multi();
+    multi.incr(key);
+    multi.pexpire(key, ttl);
+    const results = await multi.exec();
+
+    const totalHits = (results?.[0]?.[1] as number) ?? 1;
+    const timeToExpire = await this.redis.pttl(key);
+
+    return {
+      totalHits,
+      timeToExpire,
+      isBlocked: false,
+      timeToBlockExpire: 0,
+    };
+  }
 }

@@ -1,10 +1,13 @@
-// test race revoked token test 
-
+// test race revoked token test
 
 jest.mock('@/generated/prisma/client', () => ({
   PrismaClient: class PrismaClient {
-    $connect() { return Promise.resolve(); }
-    $disconnect() { return Promise.resolve(); }
+    $connect() {
+      return Promise.resolve();
+    }
+    $disconnect() {
+      return Promise.resolve();
+    }
   },
   Prisma: {
     TransactionClient: class TransactionClient {},

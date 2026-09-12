@@ -10,6 +10,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./backend/.env
+    environment:
+      DB_AUTH_MODE: password
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -36,6 +38,7 @@ services:
 
   db:
     image: postgres:16-alpine
+    # Development only. Azure production uses Entra ID and has no database password.
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}

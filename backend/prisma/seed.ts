@@ -1,12 +1,12 @@
 import "dotenv/config";
-import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, UserRole } from "../src/generated/prisma/client";
+import { createDatabasePool, validateDatabaseConfiguration } from "../src/database/database.config";
 import * as bcrypt from "bcryptjs";
 
-const connectionString = process.env.DATABASE_URL || "";
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
+validateDatabaseConfiguration();
+const pool = createDatabasePool();
+const adapter = new PrismaPg(pool, { disposeExternalPool: true });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
@@ -43,11 +43,9 @@ async function main() {
 main()
   .then(async () => {
     await prisma.$disconnect();
-    await pool.end();
   })
   .catch(async (e) => {
     console.error("Seed failed:", e);
     await prisma.$disconnect();
-    await pool.end();
     process.exit(1);
   });

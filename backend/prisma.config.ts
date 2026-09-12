@@ -8,6 +8,7 @@ export default defineConfig({
      seed: "tsx prisma/seed.ts",
   },
   datasource: {
+    // Prisma CLI commands use an ephemeral DATABASE_URL supplied by the migration workflow.
     url: env("DATABASE_URL"),
   },
 });

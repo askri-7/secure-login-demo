@@ -15,7 +15,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
   // by HTTPS, since that's the config that matters (raw stack traces
   // shouldn't leak over a real public URL, secure or not is what decides
   // that, not a label).
-  private readonly isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
+  private readonly isSecureConnection =
+    process.env.FRONTEND_URL?.startsWith('https://');
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -27,7 +28,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     // ── Prisma Errors ──
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-      const prismaError = exception as Prisma.PrismaClientKnownRequestError;
+      const prismaError = exception;
       switch (prismaError.code) {
         case 'P2002': // Unique constraint violation
           status = HttpStatus.CONFLICT;
@@ -71,7 +72,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message,
     };
 
-    console.error(`[${correlationId}] [${request.method}] ${request.url} → ${status}`, exception);
+    console.error(
+      `[${correlationId}] [${request.method}] ${request.url} → ${status}`,
+      exception,
+    );
 
     response.status(status).json(errorResponse);
   }

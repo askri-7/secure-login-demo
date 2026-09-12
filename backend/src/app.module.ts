@@ -15,19 +15,18 @@ import { EmailModule } from './email/email.module';
 import { RedisThrottlerStorage } from './throttler/redis-throttler-storage.service';
 
 @Module({
-  
   imports: [
     EmailModule,
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     UsersModule,
-     ThrottlerModule.forRoot({
+    ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60000, limit: 100 }],
-      storage: new RedisThrottlerStorage(),  // ← ADD
+      storage: new RedisThrottlerStorage(), // ← ADD
     }),
     HealthModule,
-   
+
     EmailModule,
   ],
   controllers: [AppController, HealthController, EmailController],
@@ -40,10 +39,7 @@ import { RedisThrottlerStorage } from './throttler/redis-throttler-storage.servi
   ],
 })
 export class AppModule {
-
-    configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(CorrelationIdMiddleware)
-      .forRoutes('*'); // Apply to all routes
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*'); // Apply to all routes
   }
 }

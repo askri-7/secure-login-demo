@@ -1,0 +1,56 @@
+# Web VM production stack.
+# This VM has no PostgreSQL, Redis, Key Vault, or backend access credentials.
+
+services:
+  frontend:
+    image: ${ACR_LOGIN_SERVER}/${FRONTEND_IMAGE_NAME:-frontend}:${IMAGE_TAG:?IMAGE_TAG must be an immutable Git SHA}
+    restart: unless-stopped
+    environment:
+      BACKEND_HOST: ${APP_VM_PRIVATE_HOST:?APP_VM_PRIVATE_HOST is required}
+      BACKEND_PORT: ${APP_VM_PRIVATE_PORT:-3000}
+      DOMAIN_NAME: ${DOMAIN_NAME:?DOMAIN_NAME is required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  certbot-init:
+    image: certbot/certbot:latest
+    restart: "no"
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME:?DOMAIN_NAME is required}
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+    entrypoint: >
+      sh -c '
+      set -e;
+      mkdir -p /etc/letsencrypt/live/$${DOMAIN_NAME};
+      if [ -f "/etc/letsencrypt/live/$${DOMAIN_NAME}/fullchain.pem" ]; then exit 0; fi;
+      openssl req -x509 -nodes -newkey rsa:2048 -days 1
+      -keyout /etc/letsencrypt/live/$${DOMAIN_NAME}/privkey.pem
+      -out /etc/letsencrypt/live/$${DOMAIN_NAME}/fullchain.pem
+      -subj "/CN=$${DOMAIN_NAME}";
+      '
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  letsencrypt:
+  certbot-www:

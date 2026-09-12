@@ -16,7 +16,7 @@ import { EmailModule } from '@/email/email.module';
 @Module({
   imports: [
     PrismaModule,
-    EmailModule, 
+    EmailModule,
     JwtModule.registerAsync({
       useFactory: () => {
         const jwtSecret = process.env.JWT_SECRET;
@@ -42,6 +42,6 @@ import { EmailModule } from '@/email/email.module';
     // EmailService REMOVED — now comes from EmailModule
   ],
   controllers: [AuthController],
-  exports: [JwtAuthGuard, RolesGuard, AuthService],  // ← AuthService exported for EmailVerificationController
+  exports: [JwtAuthGuard, RolesGuard, AuthService], // ← AuthService exported for EmailVerificationController
 })
 export class AuthModule {}

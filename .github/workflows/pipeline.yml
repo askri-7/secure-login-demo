@@ -1,191 +1,77 @@
-name: CI/CD
+name: Application image CI/CD
 
 on:
-  push:
-    branches:
-      - main
-      - behind
   workflow_dispatch:
+    inputs:
+      app_repository:
+        description: Repository containing the application source
+        required: true
+        type: string
+      app_ref:
+        description: Branch, tag, or commit to build
+        required: true
+        default: main
+        type: string
+      acr_name:
+        description: Azure Container Registry name
+        required: true
+        type: string
+      image_name:
+        description: Image repository name
+        required: true
+        default: backend
+        type: string
+      dockerfile:
+        description: Dockerfile path inside the application repository
+        required: true
+        default: Dockerfile
+        type: string
 
 permissions:
   contents: read
+  id-token: write
 
 env:
-  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/secure-login-demo-backend
-  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/secure-login-demo-frontend
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-
-  # ============================================================
-  # 1. CODE QUALITY + SECURITY
-  # ============================================================
-
-  code-security:
-    name: Code Security
+  build-scan-push:
+    name: Build, scan, and push immutable image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout application repository
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
+          repository: ${{ inputs.app_repository }}
+          ref: ${{ inputs.app_ref }}
+          token: ${{ secrets.APP_REPOSITORY_TOKEN }}
+
+      - name: Azure login using OIDC
+        uses: azure/login@v2
         with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - working-directory: backend
-        run: npm ci
-      - working-directory: backend
-        run: npm run build
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          client-id: ${{ secrets.APP_CI_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-  # ============================================================
-  # 2. BUILD CONTAINERS — CLEAN, NO CACHE
-  # ============================================================
+      - name: Resolve registry login server
+        id: registry
+        run: echo "login_server=$(az acr show --name '${{ inputs.acr_name }}' --query loginServer --output tsv)" >> "$GITHUB_OUTPUT"
 
-  build:
-    name: Build Docker Images
-    runs-on: ubuntu-latest
-    needs: code-security
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: Sign in to ACR
+        run: az acr login --name "${{ inputs.acr_name }}"
+
+      - name: Build image
+        run: docker build --file "${{ inputs.dockerfile }}" --tag "${{ steps.registry.outputs.login_server }}/${{ inputs.image_name }}:${{ env.IMAGE_TAG }}" .
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          image-ref: ${{ steps.registry.outputs.login_server }}/${{ inputs.image_name }}:${{ env.IMAGE_TAG }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
 
-      - name: Build backend (clean — no cache)
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile.prod
-          load: true
-          no-cache: true
-          tags: |
-            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-            ${{ env.BACKEND_IMAGE }}:latest
-          provenance: false
-          sbom: false
-
-      - name: Build frontend (clean — no cache)
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile.prod
-          build-args: |
-            NGINX_TEMPLATE=default.conf.prod.template
-          load: true
-          no-cache: true
-          tags: |
-            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-            ${{ env.FRONTEND_IMAGE }}:latest
-          provenance: false
-          sbom: false
-
-      - name: Verify image contains new code
-        run: |
-          echo "Backend image created at:"
-          docker inspect ${{ env.BACKEND_IMAGE }}:${{ github.sha }} --format='{{.Created}}'
-          echo "Frontend image created at:"
-          docker inspect ${{ env.FRONTEND_IMAGE }}:${{ github.sha }} --format='{{.Created}}'
-
-      # ----------------------------------------------------------
-      # Docker Scout — DISABLED
-      # ----------------------------------------------------------
-      # - name: Scan backend with Docker Scout
-      #   uses: docker/scout-action@v1
-      #   with:
-      #     command: cves
-      #     image: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-      #     only-severities: critical,high
-      #     exit-code: true
-      #
-      # - name: Scan frontend with Docker Scout
-      #   uses: docker/scout-action@v1
-      #   with:
-      #     command: cves
-      #     image: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-      #     only-severities: critical,high
-      #     exit-code: true
-
-      # ----------------------------------------------------------
-      # Push only after security checks pass
-      # ----------------------------------------------------------
-      - name: Push backend
-        run: |
-          docker push ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-          docker push ${{ env.BACKEND_IMAGE }}:latest
-
-      - name: Push frontend
-        run: |
-          docker push ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-          docker push ${{ env.FRONTEND_IMAGE }}:latest
-
-  # ============================================================
-  # 3. DEPLOY TO VM
-  # ============================================================
-  deploy:
-    name: Deploy to VM
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push'
-    steps:
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            set -e
-            APP_DIR="/opt/secure-login-demo"
-            cd "$APP_DIR"
-
-            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
-            export IMAGE_TAG="${{ github.sha }}"
-            COMPOSE="docker compose -f ${APP_DIR}/docker-compose.prod.yml"
-
-            # FIX: persist the tag to .env on disk, not just this SSH session's
-            # shell. Otherwise a later manual "docker compose up -d" run by
-            # anyone on the VM silently falls back to whatever stale tag is
-            # still written in .env.
-            echo "[+] Recording image tag ${IMAGE_TAG} in .env..."
-            sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" "$APP_DIR/.env"
-
-            # FIX: scope pull/up to the app services only. Without this,
-            # every push also touches db/redis/certbot/certbot-init — if any
-            # of those use a floating upstream tag, a routine app deploy
-            # could silently recreate the database container.
-            echo "[+] Pulling app images for commit ${IMAGE_TAG}..."
-            $COMPOSE pull backend frontend
-
-            echo "[+] Restarting app services..."
-            $COMPOSE up -d --remove-orphans backend frontend
-
-            echo "[+] Pruning old images..."
-            docker image prune -a -f --filter "until=168h"
-
-            echo "[+] Waiting for health checks..."
-            sleep 15
-
-            # FIX: actually verify the deploy instead of just printing status.
-            # A crash-looping container previously still reported success.
-            echo "[+] Verifying backend and frontend are running..."
-            for svc in backend frontend; do
-              STATE=$($COMPOSE ps --status running --services)
-              if ! echo "$STATE" | grep -qx "$svc"; then
-                echo "[!] $svc is not running after deploy"
-                $COMPOSE logs --tail 50 "$svc"
-                exit 1
-              fi
-            done
-
-            echo "[+] Status:"
-            $COMPOSE ps
-            echo "[+] Deployment complete."
+      - name: Push immutable image
+        run: docker push "${{ steps.registry.outputs.login_server }}/${{ inputs.image_name }}:${{ env.IMAGE_TAG }}"

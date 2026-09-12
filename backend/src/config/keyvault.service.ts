@@ -5,13 +5,14 @@ const SECRET_MAP: Record<string, string> = {
   'jwt-secret': 'JWT_SECRET',
   'github-client-secret': 'GITHUB_CLIENT_SECRET',
   'google-client-secret': 'GOOGLE_CLIENT_SECRET',
-  'smtp-pass': 'SMTP_PASS',          
-  'db-password': 'DATABASE_URL_PASSWORD', 
-  'admin-email': 'ADMIN_EMAIL',   
-  'admin-password': 'ADMIN_PASSWORD', 
+  'smtp-pass': 'SMTP_PASS',
+  'admin-email': 'ADMIN_EMAIL',
+  'admin-password': 'ADMIN_PASSWORD',
 };
 
-export async function loadSecretsFromKeyVault(): Promise<Record<string, string>> {
+export async function loadSecretsFromKeyVault(): Promise<
+  Record<string, string>
+> {
   const vaultUrl = process.env.AZURE_KEY_VAULT_URL;
   if (!vaultUrl) {
     console.log('No AZURE_KEY_VAULT_URL set, skipping Key Vault');

@@ -1,6 +1,5 @@
-import { Injectable} from '@nestjs/common';
-import {PrismaService} from '@/database/prisma.service';
-
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '@/database/prisma.service';
 
 export type AuditEvent =
   | 'SIGNUP'
@@ -18,30 +17,27 @@ export type AuditMetadata = Record<string, unknown>;
 
 @Injectable()
 export class AuditLogService {
-    constructor( private prisma: PrismaService){}
-   
-   
-    async log(opts:{
-        event : AuditEvent;
-        userId?: number | null ;
-        ip: string;
-        userAgent?: string;
-        metadata?: AuditMetadata;
+  constructor(private prisma: PrismaService) {}
 
-    }): Promise<void> {
-        try {
-            await this.prisma.auditLog.create({
-                data: {
-                    userId: opts.userId ?? null ,
-                    event: opts.event,
-                    ip: opts.ip,
-                    userAgent: opts.userAgent ?? null,
-                    metadata: opts.metadata? JSON.stringify(opts.metadata) : null, 
-                },
-            });
-        }catch(err) {
-             console.error('Audit log failed:', err);
-
-        }
+  async log(opts: {
+    event: AuditEvent;
+    userId?: number | null;
+    ip: string;
+    userAgent?: string;
+    metadata?: AuditMetadata;
+  }): Promise<void> {
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: opts.userId ?? null,
+          event: opts.event,
+          ip: opts.ip,
+          userAgent: opts.userAgent ?? null,
+          metadata: opts.metadata ? JSON.stringify(opts.metadata) : null,
+        },
+      });
+    } catch (err) {
+      console.error('Audit log failed:', err);
     }
+  }
 }

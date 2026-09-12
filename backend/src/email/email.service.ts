@@ -21,7 +21,9 @@ export class EmailService {
         auth: { user, pass },
       });
     } else {
-      this.logger.warn('No SMTP config found. Emails will be logged to console only.');
+      this.logger.warn(
+        'No SMTP config found. Emails will be logged to console only.',
+      );
     }
   }
 
@@ -54,12 +56,16 @@ export class EmailService {
 
       this.logger.log(`Verification email sent to ${to}`);
     } else {
-      this.logger.log(`\n═══════════════════════════════════════════════════════`);
+      this.logger.log(
+        `\n═══════════════════════════════════════════════════════`,
+      );
       this.logger.log(`📧 VERIFICATION EMAIL (console fallback)`);
       this.logger.log(`   To: ${to}`);
       this.logger.log(`   Subject: ${subject}`);
       this.logger.log(`   Link: ${url}`);
-      this.logger.log(`═══════════════════════════════════════════════════════\n`);
+      this.logger.log(
+        `═══════════════════════════════════════════════════════\n`,
+      );
     }
   }
 

@@ -1,13 +1,13 @@
-import { Controller , Get , Req , UseGuards} from '@nestjs/common';
+import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
-import {UserRole} from '@/generated/prisma/client';
+import { UserRole } from '@/generated/prisma/client';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/auth/guards/roles.guard';
-import {Roles} from '@/auth/decorators/roles.decorator';
+import { Roles } from '@/auth/decorators/roles.decorator';
 import { UsersService } from './users.service';
 
 type JwtRequestUser = {
-  sub: number ;
+  sub: number;
   email: string;
   role: UserRole;
 };
@@ -25,18 +25,14 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   // This route is protected twice: JWT first, then the ADMIN-only role check.
-
-  findAll(){
+  findAll() {
     return this.userService.findAllUsers();
   }
 
   @Get('me') // Get /users/me
-  
-  // JWT is enough here because the logged-in user can only read their own record.
 
+  // JWT is enough here because the logged-in user can only read their own record.
   findMe(@Req() request: AuthenticatedRequest) {
     return this.userService.findCurrentUser(request.user.sub);
   }
-
-
 }

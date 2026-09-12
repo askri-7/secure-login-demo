@@ -31,6 +31,24 @@
 $ npm install
 ```
 
+## Database configuration
+
+For local development, set `DB_AUTH_MODE=password` and provide a local
+development only `DATABASE_URL`. For Azure production, set
+`DB_AUTH_MODE=entra`, `DB_HOST`, `DB_PORT`, `DB_NAME`, and `DB_PRINCIPAL`. The
+app VM managed identity is the runtime database identity. Production does not
+use a PostgreSQL password or load one from Key Vault.
+
+The migration identity is separate from the app identity. Its pipeline runs
+`npx prisma migrate deploy` followed by `npx prisma db seed` before deployment.
+The seed is idempotent and can be run repeatedly. Backend startup does not run
+either command.
+
+```bash
+npx prisma generate
+npx prisma migrate deploy
+npx prisma db seed
+```
 ## Compile and run the project
 
 ```bash

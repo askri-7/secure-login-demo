@@ -7,46 +7,17 @@ import type { Express } from 'express';
 import { AllExceptionsFilter } from '@/filters/all-exceptions.filter';
 import { json, urlencoded } from 'express';
 import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
+import { validateDatabaseConfiguration } from '@/database/database.config';
 
 dotenv.config();
 
 async function bootstrap() {
- //  Load all secrets from Key Vault into process.env FIRST
+  validateDatabaseConfiguration();
+
   const vaultSecrets = await loadSecretsFromKeyVault();
   Object.entries(vaultSecrets).forEach(([key, value]) => {
     process.env[key] = value;
   });
-
-  //  Construct DATABASE_URL
-  const dbHost = process.env.DB_HOST || 'db';
-  const dbPort = process.env.DB_PORT || '5432';
-  const dbName = process.env.DB_NAME || 'authdb';
-  const dbUser = process.env.DB_USER;              
-  const dbPass = process.env.DATABASE_URL_PASSWORD; 
-
-  if (dbUser && dbPass) {
-    process.env.DATABASE_URL = `postgresql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
-    console.log('DATABASE_URL constructed from Key Vault secrets');
-  } else {
-    throw new Error(
-      `Missing DB credentials: DB_USER=${dbUser ? 'set' : 'MISSING'}, DATABASE_URL_PASSWORD=${dbPass ? 'set' : 'MISSING'}`
-    );
-  }
-
-  //  Run migrations and seeding
-
-  if (process.env.RUN_MIGRATIONS === 'true') {
-    const { execSync } = await import('child_process');
-
-    console.log('⏳ Running Prisma migrations...');
-    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-
-    console.log('🌱 Seeding database...');
-    execSync('npx prisma db seed', { stdio: 'inherit' });
-  }
-
-  
-
 
   const app = await NestFactory.create(AppModule);
 
@@ -61,21 +32,23 @@ async function bootstrap() {
   expressApp.use(json({ limit: '10kb' }));
   expressApp.use(urlencoded({ extended: true, limit: '10kb' }));
 
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        upgradeInsecureRequests: [],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          upgradeInsecureRequests: [],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-  }));
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   const frontendUrl = process.env.FRONTEND_URL;
   if (!frontendUrl) {
@@ -104,7 +77,9 @@ async function bootstrap() {
     console.log(`Received ${signal}, starting graceful shutdown...`);
     server.close(async () => {
       const shutdownTimeout = setTimeout(() => {
-        console.error('Forced shutdown: some requests did not complete in time');
+        console.error(
+          'Forced shutdown: some requests did not complete in time',
+        );
         process.exit(1);
       }, 10000);
 

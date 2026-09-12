@@ -1,0 +1,58 @@
+# App VM production stack.
+# The app VM uses its user assigned managed identity for ACR, Key Vault, and PostgreSQL.
+
+services:
+  backend:
+    image: ${ACR_LOGIN_SERVER}/${BACKEND_IMAGE_NAME:-backend}:${IMAGE_TAG:?IMAGE_TAG must be an immutable Git SHA}
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      DB_AUTH_MODE: entra
+      DB_HOST: ${DB_HOST:?DB_HOST is required}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      DB_PRINCIPAL: ${DB_PRINCIPAL:?DB_PRINCIPAL is required}
+      AZURE_KEY_VAULT_URL: ${AZURE_KEY_VAULT_URL:?AZURE_KEY_VAULT_URL is required}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    ports:
+      - "${APP_VM_BIND_ADDRESS:-0.0.0.0}:3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-data:

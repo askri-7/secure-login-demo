@@ -1,0 +1,39 @@
+# App VM production template.
+# The web VM uses docker-compose.web.prod-template.yml separately.
+
+services:
+  backend:
+    image: ${{acr_login_server}}/${{backend_image_name}}:${{image_tag}}
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      DB_AUTH_MODE: entra
+      DB_HOST: ${{db_host}}
+      DB_PORT: "5432"
+      DB_NAME: ${{db_name}}
+      DB_PRINCIPAL: ${{db_principal}}
+      AZURE_KEY_VAULT_URL: ${{azure_key_vault_url}}
+      FRONTEND_URL: ${{frontend_url}}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    ports:
+      - "${{app_vm_bind_address}}:3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:
