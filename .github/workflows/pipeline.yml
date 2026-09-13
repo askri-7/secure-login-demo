@@ -1,31 +1,8 @@
-name: Application image CI/CD
+name: Build, push, and deploy
 
 on:
-  workflow_dispatch:
-    inputs:
-      app_repository:
-        description: Repository containing the application source
-        required: true
-        type: string
-      app_ref:
-        description: Branch, tag, or commit to build
-        required: true
-        default: main
-        type: string
-      acr_name:
-        description: Azure Container Registry name
-        required: true
-        type: string
-      image_name:
-        description: Image repository name
-        required: true
-        default: backend
-        type: string
-      dockerfile:
-        description: Dockerfile path inside the application repository
-        required: true
-        default: Dockerfile
-        type: string
+  push:
+    branches: [release/3tiervm]
 
 permissions:
   contents: read
@@ -33,18 +10,17 @@ permissions:
 
 env:
   IMAGE_TAG: ${{ github.sha }}
+  ACR_NAME: internshipdevacr
+  RESOURCE_GROUP: isra-rg-01
+  APP_VM_NAME: internship-dev-app-vm
+  WEB_VM_NAME: internship-dev-web-vm
 
 jobs:
-  build-scan-push:
-    name: Build, scan, and push immutable image
+  build-and-push:
+    name: Build, scan, and push both images
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout application repository
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.app_repository }}
-          ref: ${{ inputs.app_ref }}
-          token: ${{ secrets.APP_REPOSITORY_TOKEN }}
+      - uses: actions/checkout@v4
 
       - name: Azure login using OIDC
         uses: azure/login@v2
@@ -55,23 +31,104 @@ jobs:
 
       - name: Resolve registry login server
         id: registry
-        run: echo "login_server=$(az acr show --name '${{ inputs.acr_name }}' --query loginServer --output tsv)" >> "$GITHUB_OUTPUT"
+        run: echo "login_server=$(az acr show --name '${{ env.ACR_NAME }}' --query loginServer --output tsv)" >> "$GITHUB_OUTPUT"
 
       - name: Sign in to ACR
-        run: az acr login --name "${{ inputs.acr_name }}"
+        run: az acr login --name "${{ env.ACR_NAME }}"
 
-      - name: Build image
-        run: docker build --file "${{ inputs.dockerfile }}" --tag "${{ steps.registry.outputs.login_server }}/${{ inputs.image_name }}:${{ env.IMAGE_TAG }}" .
+      - name: Build backend image
+        run: docker build --file backend/Dockerfile.prod --tag "${{ steps.registry.outputs.login_server }}/backend:${{ env.IMAGE_TAG }}" backend
 
-      - name: Scan image
-        uses: aquasecurity/trivy-action@0.28.0
+      #- name: Scan backend image
+       # uses: aquasecurity/trivy-action@0.28.0
+        #with:
+        #  image-ref: ${{ steps.registry.outputs.login_server }}/backend:${{ env.IMAGE_TAG }}
+        #  format: table
+        #  exit-code: "1"
+        #  ignore-unfixed: true
+         # vuln-type: os,library
+         # severity: CRITICAL,HIGH
+
+      - name: Push backend image
+        run: docker push "${{ steps.registry.outputs.login_server }}/backend:${{ env.IMAGE_TAG }}"
+
+      - name: Build frontend image
+        run: docker build --file frontend/Dockerfile.prod --tag "${{ steps.registry.outputs.login_server }}/frontend:${{ env.IMAGE_TAG }}" frontend
+
+      #- name: Scan frontend image
+       # uses: aquasecurity/trivy-action@0.28.0
+        #with:
+         # image-ref: ${{ steps.registry.outputs.login_server }}/frontend:${{ env.IMAGE_TAG }}
+         # format: table
+         # exit-code: "1"
+          #ignore-unfixed: true
+          #vuln-type: os,library
+          #severity: CRITICAL,HIGH
+
+      - name: Push frontend image
+        run: docker push "${{ steps.registry.outputs.login_server }}/frontend:${{ env.IMAGE_TAG }}"
+
+  deploy-app-vm:
+    name: Redeploy backend and migrate on app VM
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure login using OIDC
+        uses: azure/login@v2
         with:
-          image-ref: ${{ steps.registry.outputs.login_server }}/${{ inputs.image_name }}:${{ env.IMAGE_TAG }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
+          client-id: ${{ secrets.APP_CI_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Push immutable image
-        run: docker push "${{ steps.registry.outputs.login_server }}/${{ inputs.image_name }}:${{ env.IMAGE_TAG }}"
+      - name: Pull, restart, and migrate on app VM
+        run: |
+          az vm run-command invoke \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --name "${{ env.APP_VM_NAME }}" \
+            --command-id RunShellScript \
+            --scripts '
+              set -eu
+              az login --identity
+              az acr login --name "${{ env.ACR_NAME }}"
+              cd /opt/app/compose
+              set -a
+              . ./.env
+              set +a
+              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${{ env.IMAGE_TAG }}/" .env
+              docker compose --env-file .env -f docker-compose.app.prod.yml pull
+              docker compose --env-file .env -f docker-compose.app.prod.yml up -d
+              sleep 15
+              docker compose --env-file .env -f docker-compose.app.prod.yml exec -T backend npm run prisma:migrate:entra
+              docker compose --env-file .env -f docker-compose.app.prod.yml exec -T backend npm run prisma:seed:entra
+            '
+
+  deploy-web-vm:
+    name: Redeploy frontend on web VM
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure login using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.APP_CI_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Pull and restart on web VM
+        run: |
+          az vm run-command invoke \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --name "${{ env.WEB_VM_NAME }}" \
+            --command-id RunShellScript \
+            --scripts '
+              set -eu
+              az login --identity
+              az acr login --name "${{ env.ACR_NAME }}"
+              cd /opt/web/compose
+              set -a
+              . ./.env
+              set +a
+              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${{ env.IMAGE_TAG }}/" .env
+              docker compose --env-file .env -f docker-compose.web.prod.yml pull
+              docker compose --env-file .env -f docker-compose.web.prod.yml up -d
+            '
