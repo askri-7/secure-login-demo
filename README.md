@@ -116,6 +116,16 @@ name of the app VM. Only the web VM can reach the backend port. The web VM does
 not receive `DB_HOST`, `DB_NAME`, `DB_PRINCIPAL`, or `AZURE_KEY_VAULT_URL`.
 The app VM does not run the frontend or certificate services.
 
+The application image workflow reads the nonsecret repository variable
+`ACR_NAME`. Set it to the exact value returned by the infrastructure repository:
+
+```bash
+terraform output -raw acr_name
+```
+
+Also ensure `AZURE_SUBSCRIPTION_ID` points to the subscription containing that
+registry. The workflow stops before Docker builds if either value is wrong.
+
 Local Docker Compose runs a separate PostgreSQL container with a development
 only password. Copy `backend/.env.example` to `backend/.env`, keep
 `DB_AUTH_MODE=password`, and use the local `DATABASE_URL`. These settings must

@@ -10,7 +10,8 @@ permissions:
 
 env:
   IMAGE_TAG: ${{ github.sha }}
-  ACR_NAME: internshipdevacr
+  # Set this repository variable from `terraform output -raw acr_name`.
+  ACR_NAME: ${{ vars.ACR_NAME }}
   RESOURCE_GROUP: isra-rg-01
   APP_VM_NAME: internship-dev-app-vm
   WEB_VM_NAME: internship-dev-web-vm
@@ -29,25 +30,46 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Verify Azure subscription and ACR visibility
+        run: |
+          set -euo pipefail
+          az account show --query '{tenantId:tenantId,subscriptionId:id,name:name}' --output table
+          az acr list --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}" --query '[].{name:name,resourceGroup:resourceGroup,loginServer:loginServer}' --output table
+
       - name: Resolve registry login server
         id: registry
-        run: echo "login_server=$(az acr show --name '${{ env.ACR_NAME }}' --query loginServer --output tsv)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          if [ -z "${ACR_NAME}" ]; then
+            echo "ACR_NAME repository variable is empty. Set it to the exact Terraform acr_name output."
+            exit 1
+          fi
+          login_server=$(az acr show --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}" --name "${ACR_NAME}" --query loginServer --output tsv) || {
+            echo "ACR '${ACR_NAME}' was not found in the Azure subscription selected by AZURE_SUBSCRIPTION_ID."
+            echo "Check AZURE_SUBSCRIPTION_ID and set ACR_NAME to the exact Terraform acr_name output."
+            exit 1
+          }
+          if [ -z "${login_server}" ]; then
+            echo "Azure returned an empty ACR login server for '${ACR_NAME}'."
+            exit 1
+          fi
+          echo "login_server=${login_server}" >> "$GITHUB_OUTPUT"
 
       - name: Sign in to ACR
-        run: az acr login --name "${{ env.ACR_NAME }}"
+        run: az acr login --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}" --name "${{ env.ACR_NAME }}"
 
       - name: Build backend image
         run: docker build --file backend/Dockerfile.prod --tag "${{ steps.registry.outputs.login_server }}/backend:${{ env.IMAGE_TAG }}" backend
 
-      #- name: Scan backend image
-       # uses: aquasecurity/trivy-action@0.28.0
-        #with:
-        #  image-ref: ${{ steps.registry.outputs.login_server }}/backend:${{ env.IMAGE_TAG }}
-        #  format: table
-        #  exit-code: "1"
-        #  ignore-unfixed: true
-         # vuln-type: os,library
-         # severity: CRITICAL,HIGH
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.registry.outputs.login_server }}/backend:${{ env.IMAGE_TAG }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
 
       - name: Push backend image
         run: docker push "${{ steps.registry.outputs.login_server }}/backend:${{ env.IMAGE_TAG }}"
@@ -55,15 +77,15 @@ jobs:
       - name: Build frontend image
         run: docker build --file frontend/Dockerfile.prod --tag "${{ steps.registry.outputs.login_server }}/frontend:${{ env.IMAGE_TAG }}" frontend
 
-      #- name: Scan frontend image
-       # uses: aquasecurity/trivy-action@0.28.0
-        #with:
-         # image-ref: ${{ steps.registry.outputs.login_server }}/frontend:${{ env.IMAGE_TAG }}
-         # format: table
-         # exit-code: "1"
-          #ignore-unfixed: true
-          #vuln-type: os,library
-          #severity: CRITICAL,HIGH
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.registry.outputs.login_server }}/frontend:${{ env.IMAGE_TAG }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
 
       - name: Push frontend image
         run: docker push "${{ steps.registry.outputs.login_server }}/frontend:${{ env.IMAGE_TAG }}"
