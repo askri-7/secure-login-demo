@@ -20,7 +20,7 @@ FROM nginx:1.27-alpine AS runtime
 
 ENV BACKEND_HOST=backend
 ENV BACKEND_PORT=3000
-ARG NGINX_TEMPLATE=default.conf.prod.template
+ARG NGINX_TEMPLATE=default.conf.template
 
 
 COPY nginx/${NGINX_TEMPLATE} /etc/nginx/templates/default.conf.template

@@ -1,11 +1,19 @@
-import { useSearchParams, Link } from "react-router-dom";
+import { useEffect } from "react";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const error = searchParams.get("error");
+  const verified = searchParams.get("verified") === "1";
 
-  // This page ONLY handles errors. Success never reaches here —
-  // the backend redirects to /?verified=1 instead.
+  useEffect(() => {
+    if (verified) {
+      navigate("/login?verified=1", { replace: true });
+    }
+  }, [navigate, verified]);
+
+  if (verified) return null;
 
   let eyebrow = "Verification failed";
   let title = "Something went wrong";

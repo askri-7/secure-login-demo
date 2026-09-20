@@ -285,17 +285,9 @@ async verifyEmail(
   }
 
   try {
-    // 1. Verify token → returns user
-    const user = await this.emailVerification.verifyToken(token);
+    await this.emailVerification.verifyToken(token);
 
-    // 2. Create session
-    const session = await this.authService.createSession(user);
-
-    // 3. Set cookies
-    this.setAuthCookies(res, session.accessToken, session.refreshToken);
-
-    // 4. Redirect to home (logged in)
-    return res.redirect(frontendUrl);
+    return res.redirect(`${frontendUrl}/login?verified=1`);
   } catch (err) {
     // ANY error (expired, invalid, already used) → redirect with error
     return res.redirect(`${frontendUrl}/verify-email?error=expired_or_invalid`);

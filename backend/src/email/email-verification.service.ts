@@ -2,7 +2,6 @@
 import { Injectable , UnauthorizedException} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
-import {User} from '@/generated/prisma/client';
 import Redis from 'ioredis';
 import { PrismaService } from '@/database/prisma.service';
 
@@ -31,7 +30,7 @@ export class EmailVerificationService{
         return rawtoken;  
     }
 
-    async verifyToken(rawToken: string): Promise<User> {
+    async verifyToken(rawToken: string): Promise<void> {
         const tokenId = rawToken.slice(0,16);
         const tokensecret = rawToken.slice(16);
 
@@ -55,10 +54,5 @@ export class EmailVerificationService{
             where: { id : userId},
             data: { emailVerified: true},
         });
-
-        return this.prisma.user.findUniqueOrThrow({
-            where :{id: userId}
-        });
-
     }
 }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../lib/api";
 import OAuthButtons from "./components/OAuthButtons";
 
@@ -8,7 +8,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const emailVerified = searchParams.get("verified") === "1";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,6 +35,12 @@ export default function LoginPage() {
         <p className="auth-eyebrow">Authenticate</p>
         <h1>Sign in</h1>
         <p className="auth-subtitle">Enter your account credentials</p>
+
+        {emailVerified && (
+          <p className="auth-success">
+            Your email has been verified. Please sign in to continue.
+          </p>
+        )}
 
         <label htmlFor="email">Email</label>
         <input

@@ -11,7 +11,8 @@ import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
 dotenv.config();
 
 async function bootstrap() {
- //  Load all secrets from Key Vault into process.env FIRST
+ 
+  //  Load all secrets from Key Vault into process.env FIRST
   const vaultSecrets = await loadSecretsFromKeyVault();
   Object.entries(vaultSecrets).forEach(([key, value]) => {
     process.env[key] = value;
