@@ -168,8 +168,7 @@ jobs:
             echo "[+] Waiting for health checks..."
             sleep 15
 
-            # FIX: actually verify the deploy instead of just printing status.
-            # A crash-looping container previously still reported success.
+           
             echo "[+] Verifying backend and frontend are running..."
             for svc in backend frontend; do
               STATE=$($COMPOSE ps --status running --services)
