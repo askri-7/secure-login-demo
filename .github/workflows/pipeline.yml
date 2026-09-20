@@ -151,17 +151,11 @@ jobs:
             export IMAGE_TAG="${{ github.sha }}"
             COMPOSE="docker compose -f ${APP_DIR}/docker-compose.prod.yml"
 
-            # FIX: persist the tag to .env on disk, not just this SSH session's
-            # shell. Otherwise a later manual "docker compose up -d" run by
-            # anyone on the VM silently falls back to whatever stale tag is
-            # still written in .env.
+   
             echo "[+] Recording image tag ${IMAGE_TAG} in .env..."
             sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" "$APP_DIR/.env"
 
-            # FIX: scope pull/up to the app services only. Without this,
-            # every push also touches db/redis/certbot/certbot-init — if any
-            # of those use a floating upstream tag, a routine app deploy
-            # could silently recreate the database container.
+      
             echo "[+] Pulling app images for commit ${IMAGE_TAG}..."
             $COMPOSE pull backend frontend
 
