@@ -10,11 +10,11 @@
   A production-minded authentication system built with NestJS, React, JWT, OAuth 2.0, and OpenID Connect.
 </p>
 
-A production-grade authentication system demonstrating how to build **secure, observable, and maintainable** auth with NestJS + React. Every security decision is intentional and traceable.
+An authentication system demonstrating how to build **secure, observable, and maintainable** auth with NestJS + React. Every security decision is intentional and traceable.
 
 ---
 
-## 📸 In Action
+##  In Action
 
 <p align="center">
   <img src="assets/main.png" alt="Vault secure login page" width="900">
