@@ -17,7 +17,7 @@ export class AuthController {
   private authService: AuthService,
   private googleOidcService: GoogleOidcService,
   private githubOAuthService: GithubOAuthService,
-  private emailVerification: EmailVerificationService,  // ← NEW
+  private emailVerification: EmailVerificationService,  
 ) {}
    // google cookie helper
   private setGoogleAuthRequestCookie(res: Response, request: GoogleAuthRequest){
@@ -110,7 +110,7 @@ private getCookie(req: Request, cookieName: string) {
 private getClientInfo(req: Request) {
   const forwarded = req.headers['x-forwarded-for'];
   
-  // X-Forwarded-For can be "client, proxy1, proxy2" — take the first (real client)
+  
   const ip = typeof forwarded === 'string'
     ? forwarded.split(',')[0].trim()
     : (req.ip || 'unknown');
@@ -202,7 +202,7 @@ async signup(@Body() signUpDto: SignUpDto, @Req() req: Request) {
 @Get('github')
 async githubLogin(@Res() res: Response) {
   const { url, request } = this.githubOAuthService.buildAuthorizationRequest();
-  this.setGithubAuthRequestCookie(res, request);  // ← store full request (state + codeVerifier)
+  this.setGithubAuthRequestCookie(res, request);  
   res.redirect(url.toString());
 }
 
@@ -270,7 +270,7 @@ async githubCallback(
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     res.redirect(`${frontendUrl}/`);
-    //res.redirect(`http://localhost:3000`);
+
   }
 @Get('verify-email')
 async verifyEmail(
