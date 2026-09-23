@@ -6,12 +6,12 @@ import helmet from 'helmet';
 import type { Express } from 'express';
 import { AllExceptionsFilter } from '@/filters/all-exceptions.filter';
 import { json, urlencoded } from 'express';
-import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
+//import { loadSecretsFromKeyVault } from '@/config/keyvault.service';
 
 dotenv.config();
 
 async function bootstrap() {
- 
+ /*
   //  Load all secrets from Key Vault into process.env FIRST
   const vaultSecrets = await loadSecretsFromKeyVault();
   Object.entries(vaultSecrets).forEach(([key, value]) => {
@@ -46,7 +46,7 @@ async function bootstrap() {
     execSync('npx prisma db seed', { stdio: 'inherit' });
   }
 
-  
+  */
 
 
   const app = await NestFactory.create(AppModule);

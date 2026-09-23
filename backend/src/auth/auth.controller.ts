@@ -157,13 +157,13 @@ private clearGithubAuthRequestCookie(res: Response) {
 
   
 @Post('signup')
-@Throttle({ default: { limit: 10, ttl: 60000 } })
+@Throttle({ default: { limit: 5, ttl: 60000 } })
 async signup(@Body() signUpDto: SignUpDto, @Req() req: Request) {
   return this.authService.signUp(signUpDto, this.getClientInfo(req));
 }
 
   @Post('login') 
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) 
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) 
   async login(@Body() loginDto: LoginDto,@Res({ passthrough: true })res: Response,  @Req() req: Request) {
     const session = await this.authService.login(loginDto, this.getClientInfo(req));
     this.setAuthCookies(res, session.accessToken, session.refreshToken);
