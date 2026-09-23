@@ -39,9 +39,9 @@ import { EmailModule } from '@/email/email.module';
     RolesGuard,
     AuditLogService,
     TokenCleanupService,
-    // EmailService REMOVED — now comes from EmailModule
+  
   ],
   controllers: [AuthController],
-  exports: [JwtAuthGuard, RolesGuard, AuthService],  // ← AuthService exported for EmailVerificationController
+  exports: [JwtAuthGuard, RolesGuard, AuthService],  
 })
 export class AuthModule {}

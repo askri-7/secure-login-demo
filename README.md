@@ -1,4 +1,14 @@
-# 🔐 Secure Login Demo
+<p align="center">
+  <img src="assets/NestJS.svg" alt="NestJS" height="64">
+  <img src="assets/jwt.png" alt="JWT" height="64">
+  <img src="assets/openid.png" alt="OpenID Connect" height="64">
+</p>
+
+<h1 align="center">🔐 Secure Login Demo</h1>
+
+<p align="center">
+  A production-minded authentication system built with NestJS, React, JWT, OAuth 2.0, and OpenID Connect.
+</p>
 
 A production-grade authentication system demonstrating how to build **secure, observable, and maintainable** auth with NestJS + React. Every security decision is intentional and traceable.
 
@@ -6,9 +16,11 @@ A production-grade authentication system demonstrating how to build **secure, ob
 
 ## 📸 In Action
 
-| Login | Sign Up | Dashboard |
-|:-----:|:-------:|:---------:|
-| ![Login](assets/login.png) | ![Signup](assets/signup.png) | ![Dashboard](assets/dashboard.png) |
+<p align="center">
+  <img src="assets/main.png" alt="Vault secure login page" width="900">
+</p>
+
+The interface supports password authentication as well as GitHub and Google sign-in. New local accounts must verify their email before they can log in.
 
 
 ---
@@ -65,6 +77,19 @@ docker compose up --build
 
 # 3. Open http://localhost:5173
 ```
+
+## Email Verification Flow
+
+Local signup uses an explicit email-verification link before authentication is allowed:
+
+1. The user submits the signup form with a name, email, and password.
+2. The backend creates the account with `emailVerified: false` and generates a random one-time token.
+3. The token is stored in Redis for 24 hours as a bcrypt hash. The raw token is sent only in the verification email.
+4. The email link calls `GET /auth/verify-email?token=...` on the backend.
+5. The backend validates the token, deletes it so it cannot be reused, marks the email as verified, and redirects to the frontend login page.
+6. Missing, invalid, expired, or already-used links redirect to the verification error page with a clear retry path.
+
+Configure `FRONTEND_URL` and the `SMTP_*` variables in `backend/.env` before testing the real email flow. When SMTP is not configured, the backend logs the verification URL to the console as a local development fallback.
 
 
 

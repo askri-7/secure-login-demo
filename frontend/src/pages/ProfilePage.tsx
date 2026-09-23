@@ -12,8 +12,7 @@ export default function ProfilePage({ user, onLoggedOut }: ProfilePageProps) {
   const navigate = useNavigate();
 
   async function handleLogout() {
-    // Tells the backend to revoke the refresh token and clear the
-    // httpOnly cookies. Nothing to clear on the frontend ourselves.
+    
     await logout();
     onLoggedOut();
     navigate("/");

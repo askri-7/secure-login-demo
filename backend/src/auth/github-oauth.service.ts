@@ -16,7 +16,7 @@ export type GithubAuthRequest = {
 @Injectable()
 export class GithubOAuthService {
 
-  // Step 1: Build the GitHub authorization URL with PKCE + CSRF state.
+  //  Build the GitHub authorization URL with PKCE + CSRF state.
   // The caller must store `request.state` and `request.codeVerifier` in an httpOnly cookie.
 
   buildAuthorizationRequest(): { url: URL; request: GithubAuthRequest } {
@@ -49,15 +49,15 @@ export class GithubOAuthService {
     return { url, request: { state, codeVerifier } };  
   }
 
-  // Step 2: Exchange the authorization code for an access token,
+  // SExchange the authorization code for an access token,
   // then fetch and verify the user's email addresses.
 
-  async completeAuthorization(code: string, codeVerifier: string): Promise<GithubProfile> {  // ← ADDED codeVerifier param
-    const accessToken = await this.exchangeCode(code, codeVerifier);  // ← PASS codeVerifier
+  async completeAuthorization(code: string, codeVerifier: string): Promise<GithubProfile> {  // codeVerifier param
+    const accessToken = await this.exchangeCode(code, codeVerifier);  // codeVerifier
     return this.fetchUserProfile(accessToken);
   }
 
-  private async exchangeCode(code: string, codeVerifier: string): Promise<string> {  // ← ADDED param
+  private async exchangeCode(code: string, codeVerifier: string): Promise<string> {  //  param
     const clientID = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
     const callbackURL = process.env.GITHUB_CALLBACK_URL;
@@ -126,7 +126,7 @@ private async fetchUserProfile(accessToken: string): Promise<GithubProfile> {
     emails.find((e) => e.verified && e.primary) ??
     emails.find((e) => e.verified);
 
-  // 2 Fetch user profile (STABLE ID + name)
+  // Fetch user profile (STABLE ID + name)
   let githubUserId = 'unknown';
   let name = 'Github User';
 
@@ -152,7 +152,7 @@ private async fetchUserProfile(accessToken: string): Promise<GithubProfile> {
   
   }
 
-  // 3 Return with FIXED profile
+  // Return with FIXED profile
   return {
     providerUserId: githubUserId,         
     email: primaryVerifiedEmail?.email ?? emails[0]?.email ?? null,

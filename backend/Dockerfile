@@ -39,7 +39,7 @@ COPY --from=build --chown=app:app /app/package.json ./package.json
 COPY --from=build --chown=app:app /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build --chown=app:app /app/src/generated/prisma ./src/generated/prisma
 
-#  Install Prisma CLI AND tsx globally so both survive prune
+
 RUN npm install -g prisma tsx
 
 

@@ -6,7 +6,7 @@ import type { Request } from 'express';
 
 //
 function getCookieValue(request: Request, cookieName: string){
-   // 1. Get the raw cookie string from the request header
+  
   const cookieHeader = request.headers.cookie;
 
   if(!cookieHeader) {
@@ -16,8 +16,7 @@ function getCookieValue(request: Request, cookieName: string){
   
   for (const cookie of cookieHeader.split(';')) {
      const [rawName, ...rawValueParts] = cookie.trim().split('=');
-     // cookie.trim() removes leading space
-    // "refreshToken=def456" → ["refreshToken", "def456"]
+    
       if (rawName === cookieName) {
       return rawValueParts.join('=');
     }

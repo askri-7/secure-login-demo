@@ -24,7 +24,7 @@ import { RedisThrottlerStorage } from './throttler/redis-throttler-storage.servi
     UsersModule,
      ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60000, limit: 100 }],
-      storage: new RedisThrottlerStorage(),  // ← ADD
+      storage: new RedisThrottlerStorage(),  
     }),
     HealthModule,
    
@@ -44,6 +44,6 @@ export class AppModule {
     configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(CorrelationIdMiddleware)
-      .forRoutes('*'); // Apply to all routes
+      .forRoutes('*');
   }
 }

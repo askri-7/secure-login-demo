@@ -19,7 +19,7 @@ export type GoogleAuthRequest = {
 @Injectable()
 
 export class GoogleOidcService implements OnModuleInit {
-    // discovery fetch google for authorization endpoint 
+
 
     private config!: client.Configuration;
 
@@ -38,8 +38,6 @@ export class GoogleOidcService implements OnModuleInit {
             clientSecret,
         );
     }
-         // Step 1: build the URL we send the browser to, plus the secrets we
-         // need to remember until Google redirects back.
         
     async buildAuthorizationRequest(): Promise<{ url : URL ; request : GoogleAuthRequest}> {
         const callbackURL = process.env.GOOGLE_CALLBACK_URL;

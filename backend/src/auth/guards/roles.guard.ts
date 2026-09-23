@@ -7,18 +7,18 @@ export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    // This is the ADMIN-only check: if the route declares roles, the request must match one of them.
+    
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    // If no roles specified, allow access
+
     if (!requiredRoles) {
       return true;
     }
 
-    // Get user from request (added by JwtAuthGuard)
+
     const { user } = context.switchToHttp().getRequest();
 
     if (!user) {

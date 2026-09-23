@@ -10,9 +10,6 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  // Signup no longer logs the user in — the backend creates an unverified
-  // account and emails a verification link. Once that succeeds we swap the
-  // form out for a "check your email" notice instead of navigating away.
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {

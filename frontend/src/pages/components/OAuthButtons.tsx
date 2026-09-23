@@ -1,8 +1,5 @@
 import { API_URL } from "../../lib/api";
 
-// These are plain <a> links, not onClick handlers — the OAuth dance needs
-// a real full-page browser navigation (the backend responds with a redirect
-// to GitHub/Google, not JSON), so a fetch() here would be the wrong tool.
 
 export default function OAuthButtons() {
   return (

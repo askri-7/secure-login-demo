@@ -17,7 +17,7 @@ export class AuthController {
   private authService: AuthService,
   private googleOidcService: GoogleOidcService,
   private githubOAuthService: GithubOAuthService,
-  private emailVerification: EmailVerificationService,  // ← NEW
+  private emailVerification: EmailVerificationService,  
 ) {}
    // google cookie helper
   private setGoogleAuthRequestCookie(res: Response, request: GoogleAuthRequest){
@@ -110,7 +110,7 @@ private getCookie(req: Request, cookieName: string) {
 private getClientInfo(req: Request) {
   const forwarded = req.headers['x-forwarded-for'];
   
-  // X-Forwarded-For can be "client, proxy1, proxy2" — take the first (real client)
+
   const ip = typeof forwarded === 'string'
     ? forwarded.split(',')[0].trim()
     : (req.ip || 'unknown');
@@ -202,7 +202,7 @@ async signup(@Body() signUpDto: SignUpDto, @Req() req: Request) {
 @Get('github')
 async githubLogin(@Res() res: Response) {
   const { url, request } = this.githubOAuthService.buildAuthorizationRequest();
-  this.setGithubAuthRequestCookie(res, request);  // ← store full request (state + codeVerifier)
+  this.setGithubAuthRequestCookie(res, request);  //  store full request (state + codeVerifier)
   res.redirect(url.toString());
 }
 
@@ -226,7 +226,7 @@ async githubCallback(
     throw new BadRequestException('GitHub authorization code missing');
   }
 
-  // PASS codeVerifier to completeAuthorization
+
   const profile = await this.githubOAuthService.completeAuthorization(code, authRequest.codeVerifier);
   const session = await this.authService.loginWithGithub(profile, this.getClientInfo(req));
   this.setAuthCookies(res, session.accessToken, session.refreshToken);
@@ -289,7 +289,7 @@ async verifyEmail(
 
     return res.redirect(`${frontendUrl}/login?verified=1`);
   } catch (err) {
-    // ANY error (expired, invalid, already used) → redirect with error
+    
     return res.redirect(`${frontendUrl}/verify-email?error=expired_or_invalid`);
   }
 }

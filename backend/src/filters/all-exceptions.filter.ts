@@ -10,11 +10,7 @@ import { Prisma } from '@/generated/prisma/client';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  // Computed once at startup, not on every exception:  — a
-  // deployment is treated as "production-like" if it's actually fronted
-  // by HTTPS, since that's the config that matters (raw stack traces
-  // shouldn't leak over a real public URL, secure or not is what decides
-  // that, not a label).
+ 
   private readonly isSecureConnection = process.env.FRONTEND_URL?.startsWith('https://');
 
   catch(exception: unknown, host: ArgumentsHost) {
@@ -25,20 +21,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
 
-    // ── Prisma Errors ──
+   
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       const prismaError = exception as Prisma.PrismaClientKnownRequestError;
       switch (prismaError.code) {
-        case 'P2002': // Unique constraint violation
+        case 'P2002': 
           status = HttpStatus.CONFLICT;
           const field = (prismaError.meta?.target as string[])?.[0] || 'field';
           message = `A record with this ${field} already exists`;
           break;
-        case 'P2025': // Record not found
+        case 'P2025': 
           status = HttpStatus.NOT_FOUND;
           message = 'Record not found';
           break;
-        case 'P2003': // Foreign key constraint
+        case 'P2003': 
           status = HttpStatus.BAD_REQUEST;
           message = 'Related record does not exist';
           break;
@@ -47,20 +43,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message = 'Database error';
       }
     }
-    // ── NestJS HTTP Exceptions ──
+  
     else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse();
       message = typeof res === 'string' ? res : (res as any).message || res;
     }
-    // ── Everything else ──
+    
     else if (exception instanceof Error) {
       message = this.isSecureConnection
         ? 'Internal server error'
         : exception.message;
     }
 
-    // ── Correlation ID ──
     const correlationId = (request as any).correlationId || 'unknown';
 
     const errorResponse = {

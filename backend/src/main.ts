@@ -18,7 +18,7 @@ async function bootstrap() {
     process.env[key] = value;
   });
 
-  //  Construct DATABASE_URL
+
   const dbHost = process.env.DB_HOST || 'db';
   const dbPort = process.env.DB_PORT || '5432';
   const dbName = process.env.DB_NAME || 'authdb';

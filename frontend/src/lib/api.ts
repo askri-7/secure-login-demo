@@ -8,7 +8,7 @@ type ApiError = {
   statusCode: number;
 };
 
-// ── TIMEOUT WRAPPER ──
+
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
@@ -33,7 +33,7 @@ async function fetchWithTimeout(
   }
 }
 
-// ── TOKEN REFRESH STATE ──
+
 let isRefreshing = false;
 let refreshPromise: Promise<void> | null = null;
 let refreshSubscribers: Array<(success: boolean) => void> = [];
@@ -47,7 +47,7 @@ function addRefreshSubscriber(cb: (success: boolean) => void) {
   refreshSubscribers.push(cb);
 }
 
-// ── CORE FETCH WRAPPER ──
+
 async function fetchWithAuth(
   url: string,
   options: RequestInit = {},
@@ -103,11 +103,9 @@ async function fetchWithAuth(
   return fetchWithAuth(url, options, true);
 }
 
-// ── RESPONSE HELPER (safe JSON parsing) ──
 async function handleResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
   const contentType = res.headers.get("content-type") || "";
 
-  // If response is not JSON (e.g., Nginx 502 HTML), handle gracefully
   if (!contentType.includes("application/json")) {
     const text = await res.text();
     console.error("Non-JSON response:", text.slice(0, 200));
@@ -127,7 +125,6 @@ async function handleResponse<T>(res: Response, fallbackMessage: string): Promis
   return data as T;
 }
 
-// ── AUTH API ──
 export async function login(email: string, password: string): Promise<{ user: User }> {
   const res = await fetchWithAuth(`${API_URL}/auth/login`, {
     method: "POST",
@@ -142,10 +139,7 @@ export async function signup(
   password: string,
   confirmPassword: string
 ): Promise<{ message: string }> {
-  // Backend now validates password === confirmPassword itself, creates the
-  // user as unverified, and emails a verification link. No cookies are set
-  // and no user is returned here — the account isn't usable until the
-  // email link is clicked.
+  
   const res = await fetchWithAuth(`${API_URL}/auth/signup`, {
     method: "POST",
     body: JSON.stringify({ name, email, password, confirmPassword }),
@@ -157,12 +151,12 @@ export async function logout(): Promise<void> {
   try {
     await fetchWithAuth(`${API_URL}/auth/logout`, { method: "POST" });
   } catch {
-    // ignore
+    
   }
   window.location.href = "/";
 }
 
-// ── PROTECTED API ──
+
 export async function fetchMe(): Promise<User> {
   const res = await fetchWithAuth(`${API_URL}/users/me`);
   return handleResponse(res, "Session expired, please log in again");
