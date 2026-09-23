@@ -27,14 +27,14 @@ The interface supports password authentication as well as GitHub and Google sign
 
 ## Why This Exists
 
-Most auth tutorials stop at "hash the password and sign a JWT." This repo goes further — it implements the **defense in depth** patterns you actually need before shipping to production:
+Most auth tutorials stop at "hash the password and sign a JWT." This repo goes further  it implements the **defense in depth** patterns you actually need before shipping to production:
 
 - **Refresh token rotation** with bcrypt-hashed secrets (stolen DB ≠ stolen sessions)
 - **Account lockout** with sliding-window brute-force protection
-- **Manual OAuth flows** (no Passport black boxes) — PKCE, state validation, explicit email verification
+- **Manual OAuth flows** (no Passport black boxes) PKCE, state validation, explicit email verification
 - **Full audit trail** — every auth event logged with IP + user agent
 - **Email verification** with one-time burn-after-reading tokens
-- **Rate limiting, helmet  CSP headers, httpOnly cookies, correlation IDs** — the boring stuff that saves you at 3 AM
+- **Rate limiting, helmet  CSP headers, httpOnly cookies, correlation IDs** the boring stuff that saves you at 3 AM
 
 ---
 

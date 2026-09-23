@@ -32,5 +32,5 @@ src/
 ## Notes
 
 - All API calls go through `src/lib/api.ts` rather than calling `fetch` directly — it handles request timeouts and silently refreshes the access token on a 401, retrying the original request once.
-- Access and refresh tokens are stored in httpOnly cookies, never in `localStorage`, so `api.ts` never reads or writes tokens itself — it only reacts to 401s.
+- Access and refresh tokens are stored in httpOnly cookies, never in `localStorage`, so `api.ts` never reads or writes tokens itself  it only reacts to 401s.
 - Built with strict TypeScript on purpose: the frontend shares the same `User`/error shapes as the backend, so a field-name typo (`emailVerified` vs `email_verified`) fails at compile time instead of becoming a silent runtime bug.

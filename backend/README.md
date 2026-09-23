@@ -52,6 +52,6 @@ prisma/
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OIDC login |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth 2.0 login |
 | `SMTP_*` | Email verification delivery |
-| `AZURE_KEY_VAULT_URL` | Production only — leave unset locally |
+| `AZURE_KEY_VAULT_URL` | Production only leave unset locally |
 
 Full architecture, sequence diagrams, and the reasoning behind each security decision are documented in the internship report, Chapter 3.
