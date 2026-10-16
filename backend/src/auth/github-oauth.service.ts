@@ -30,7 +30,7 @@ export class GithubOAuthService {
     const state = randomBytes(32).toString('hex');
     const codeVerifier = randomBytes(32).toString('base64url'); 
 
-    // PKCE: SHA-256 hash of verifier, base64url-encoded
+  
     const codeChallenge = createHash('sha256')
       .update(codeVerifier)
       .digest('base64url');
@@ -126,7 +126,7 @@ private async fetchUserProfile(accessToken: string): Promise<GithubProfile> {
     emails.find((e) => e.verified && e.primary) ??
     emails.find((e) => e.verified);
 
-  // Fetch user profile (STABLE ID + name)
+  
   let githubUserId = 'unknown';
   let name = 'Github User';
 
@@ -145,14 +145,13 @@ private async fetchUserProfile(accessToken: string): Promise<GithubProfile> {
         name?: string;
         login?: string;
       };
-      githubUserId = String(userData.id);   // never changes
+      githubUserId = String(userData.id);   
       name = userData.name || userData.login || 'Github User';
     }
   } catch {
   
   }
 
-  // Return with FIXED profile
   return {
     providerUserId: githubUserId,         
     email: primaryVerifiedEmail?.email ?? emails[0]?.email ?? null,
